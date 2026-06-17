@@ -1,9 +1,51 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Obsidian Theme Base */
+  --background: #030303;
+  --foreground: #f4f4f5;
+  
+  /* Glassmorphism & Panel Colors */
+  --bg-sidebar: rgba(10, 10, 12, 0.45);
+  --bg-card: rgba(18, 18, 22, 0.4);
+  --border-glow: rgba(255, 255, 255, 0.05);
+  --border-glow-hover: rgba(255, 255, 255, 0.12);
+  --bg-input: rgba(0, 0, 0, 0.3);
+  --border-input: rgba(255, 255, 255, 0.08);
+  
+  /* Vibrant HSL Accents */
+  --accent-green: #22c55e;
+  --accent-green-rgb: 34, 197, 94;
+  --accent-blue: #3b82f6;
+  --accent-purple: #a855f7;
+  --accent-orange: #f97316;
+  
+  /* Text colors */
+  --text-muted: #a1a1aa;
+  --text-dim: #717171;
 }
+
+[data-theme="light"] {
+  /* Premium Light Theme Base */
+  --background: #fcfcfd;
+  --foreground: #09090b;
+  
+  /* Panel Colors */
+  --bg-sidebar: rgba(244, 244, 245, 0.7);
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --border-glow: rgba(9, 9, 11, 0.06);
+  --border-glow-hover: rgba(9, 9, 11, 0.12);
+  --bg-input: #ffffff;
+  --border-input: rgba(9, 9, 11, 0.1);
+  
+  /* Subtle light accent tweaks */
+  --accent-green: #16a34a;
+  
+  /* Text colors */
+  --text-muted: #52525b;
+  --text-dim: #717179;
+}
+
 
 @theme inline {
   --color-background: var(--background);
@@ -12,15 +54,51 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Global Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Selection Color */
+::selection {
+  background: rgba(34, 197, 94, 0.2);
+  color: #ffffff;
+}
+
+/* Background Mesh shift keyframes */
+@keyframes meshShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+

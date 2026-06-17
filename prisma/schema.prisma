@@ -1,0 +1,86 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql" 
+  // ❌ url aur directUrl yahan se hata diye gaye hain
+}
+
+// ------------------------------------------------------
+// 1. USER MODEL
+// ------------------------------------------------------
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  password       String?   
+  
+  emailsSent     Email[]   @relation("SentEmails")
+  emailsReceived Email[]   @relation("ReceivedEmails")
+  events         Event[]
+  settings       Settings?
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// ------------------------------------------------------
+// 2. EMAIL MODEL 
+// ------------------------------------------------------
+model Email {
+  id          String   @id @default(cuid())
+  subject     String
+  body        String   @db.Text
+  isRead      Boolean  @default(false)
+  isArchived  Boolean  @default(false)
+  isStarred   Boolean  @default(false)
+  
+  senderId    String
+  sender      User     @relation("SentEmails", fields: [senderId], references: [id])
+  
+  receiverId  String
+  receiver    User     @relation("ReceivedEmails", fields: [receiverId], references: [id])
+  
+  createdAt   DateTime @default(now())
+}
+
+// ------------------------------------------------------
+// 3. EVENT MODEL 
+// ------------------------------------------------------
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  startTime   DateTime
+  endTime     DateTime
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ------------------------------------------------------
+// 4. SETTINGS MODEL 
+// ------------------------------------------------------
+model Settings {
+  id          String  @id @default(cuid())
+  theme       String  @default("Dark")
+  keybindMode String  @default("vim") 
+  
+  userId      String  @unique
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------
+// 5. WAITLIST MODEL 
+// ------------------------------------------------------
+model Waitlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
