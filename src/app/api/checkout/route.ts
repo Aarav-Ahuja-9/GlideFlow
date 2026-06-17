@@ -18,8 +18,11 @@ export async function POST(request: Request) {
     const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-    // Check if test keys are present and not dummy placeholders
-    const areKeysValid = keyId && keySecret && !keyId.includes('dummy') && !keyId.includes('YOUR_');
+    // Check if keys are real Razorpay credentials (not any placeholder/demo values)
+    const PLACEHOLDER_PATTERNS = ['dummy', 'YOUR_', 'Demo', 'demo', 'placeholder', 'test_Hyper', 'HFdemo'];
+    const areKeysValid = keyId && keySecret
+      && !PLACEHOLDER_PATTERNS.some(p => keyId.includes(p))
+      && !PLACEHOLDER_PATTERNS.some(p => keySecret.includes(p));
 
     if (!areKeysValid) {
       // Return a simulated mock order for seamless local sandbox testing

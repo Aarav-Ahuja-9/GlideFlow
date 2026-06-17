@@ -241,7 +241,7 @@ Do NOT use markdown formatting, code blocks, or extra text.
 
 Command: "${text}"
 
-Current Year/Month/Date reference is: June 16, 2026 (Tuesday)
+Current Year/Month/Date reference is: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
 
 Return format:
 {

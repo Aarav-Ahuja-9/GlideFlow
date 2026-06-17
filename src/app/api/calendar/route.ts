@@ -292,13 +292,15 @@ export async function DELETE(request: Request) {
 
         console.log(`Deleting calendar event: ${id} ...`);
 
+        const cleanId = id.replace(/[^a-zA-Z0-9_-]/g, '');
+
         const result = await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {
             name: "run_script",
             arguments: {
                 code: `
                 await corsair.googlecalendar.api.events.delete({
                     calendarId: "primary",
-                    id: "${id}"
+                    id: "${cleanId}"
                 });
                 return { success: true };
                 `
