@@ -13,7 +13,7 @@ import styles from './landing.module.css';
 const FAQS = [
   { 
     q: "Do I have to use the keyboard for everything?", 
-    a: "No, HyperFlow is fully functional with a mouse. We optimize every interaction with optional keyboard shortcuts so advanced users can work even faster, but standard mouse clicks work perfectly." 
+    a: "No, GlideFlow is fully functional with a mouse. We optimize every interaction with optional keyboard shortcuts so advanced users can work even faster, but standard mouse clicks work perfectly." 
   },
   { 
     q: "Is my email data secure?", 
@@ -39,7 +39,7 @@ export default function LandingPage() {
   // Keyboard Shortcuts Sandbox State
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [sandboxHistory, setSandboxHistory] = useState<string[]>([
-    'Type key shortcuts to test local database speed...',
+    'Type key shortcuts or click button grids to initiate cache sync...',
   ]);
 
   // Dynamic Theme Synchronization
@@ -47,8 +47,51 @@ export default function LandingPage() {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
+  // Intersection Observer for scroll animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add(styles.animateVisible);
+          }
+        });
+      },
+      { threshold: 0.08 } // Trigger when 8% of the section is visible
+    );
+
+    const sections = document.querySelectorAll(`.${styles.animateOnScroll}`);
+    sections.forEach((sec) => observer.observe(sec));
+
+    return () => {
+      sections.forEach((sec) => observer.unobserve(sec));
+    };
+  }, []);
+
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
+  };
+
+  const triggerSandboxKey = (key: string) => {
+    setActiveKey(key);
+    
+    let message = '';
+    if (key === 'c') {
+      message = '> [CACHE RUNTIME] Executed "C" - Compose modal mapped. Render time: 1.2ms.';
+    } else if (key === 'j') {
+      message = '> [CACHE RUNTIME] Executed "J" - Cursor advanced down priority index. Sync ok.';
+    } else if (key === 'k') {
+      message = '> [CACHE RUNTIME] Executed "K" - Cursor advanced up priority index. Sync ok.';
+    }
+
+    setSandboxHistory(prev => {
+      const next = [...prev, message];
+      if (next.length > 5) next.shift(); // Keep logs clean
+      return next;
+    });
+
+    // Clear active key outline shortly after press
+    setTimeout(() => setActiveKey(null), 250);
   };
 
   // Keyboard listener for Interactive Sandbox
@@ -62,25 +105,7 @@ export default function LandingPage() {
       const key = e.key.toLowerCase();
       if (key === 'c' || key === 'j' || key === 'k') {
         e.preventDefault();
-        setActiveKey(key);
-        
-        let message = '';
-        if (key === 'c') {
-          message = '> [Workspace] Pressed "C" - Compose overlay opened. Draft emails in milliseconds.';
-        } else if (key === 'j') {
-          message = '> [Workspace] Pressed "J" - Highlight moved down. Scan items instantaneously.';
-        } else if (key === 'k') {
-          message = '> [Workspace] Pressed "K" - Highlight moved up. Scan items instantaneously.';
-        }
-
-        setSandboxHistory(prev => {
-          const next = [...prev, message];
-          if (next.length > 5) next.shift(); // Keep logs clean
-          return next;
-        });
-
-        // Clear active key outline shortly after press
-        setTimeout(() => setActiveKey(null), 250);
+        triggerSandboxKey(key);
       }
     };
 
@@ -93,13 +118,14 @@ export default function LandingPage() {
       {/* Visual background glows */}
       <div className={styles.glowBlob1} />
       <div className={styles.glowBlob2} />
+      <div className={styles.glowBlob3} />
       
       {/* Sticky Glassmorphic Navbar */}
       <div className={styles.navbarContainer}>
         <nav className={styles.navbar}>
           <div className={styles.logo} style={{ cursor: 'pointer' }} onClick={() => router.push('/')}>
-            <BrainCircuit width="24" height="24" color="#22c55e" />
-            hyper-flow
+            <BrainCircuit width="22" height="22" color="#06b6d4" />
+            glide-flow //
           </div>
           
           <div className={styles.navLinks}>
@@ -132,7 +158,7 @@ export default function LandingPage() {
                 }}
               >
                 <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
                   {currentTheme}
                 </div>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -169,7 +195,7 @@ export default function LandingPage() {
                       setThemeOpen(false);
                     }}
                   >
-                    ☀️ Light
+                    Light
                   </button>
                   <button 
                     className={`${styles.modeBtn} ${isDarkMode ? styles.modeBtnActive : ''}`} 
@@ -179,7 +205,7 @@ export default function LandingPage() {
                       setThemeOpen(false);
                     }}
                   >
-                    🌙 Dark
+                    Dark
                   </button>
                 </div>
               </div>
@@ -191,10 +217,9 @@ export default function LandingPage() {
                 <>
                   <button 
                     className={styles.navBtn} 
-                    style={{ backgroundColor: '#22c55e', color: 'black' }}
                     onClick={() => router.push('/dashboard')}
                   >
-                    Go to Dashboard
+                    Dashboard
                   </button>
                   <UserButton />
                 </>
@@ -210,38 +235,38 @@ export default function LandingPage() {
       </div>
 
       {/* Hero Section */}
-      <main className={styles.hero}>
-        <div className={styles.pill}>HyperFlow v1.0 • Stress-Free Email Workspaces</div>
-        <h1 className={styles.headline}>The fastest email client. <br /> Built for busy professionals.</h1>
-        <p className={styles.subHeadline}>Clear your inbox, schedule meetings, and draft messages in seconds. Use standard mouse clicks or quick hotkeys—whichever feels natural.</p>
+      <main className={`${styles.hero} ${styles.animateOnScroll}`}>
+        <div className={styles.pill}>GlideFlow v2.0 • Cybernetic Email Sync</div>
+        <h1 className={styles.headline}>The fastest email client.<br />Optimized for developers.</h1>
+        <p className={styles.subHeadline}>Pre-fetch sync operations, schedule meetings, and automate sorting filters with absolute ease. Use terminal-grade hotkeys or clean mouse clicks.</p>
         
         <div className={styles.ctaContainer}>
-          <input type="email" placeholder="Enter your work email address" className={styles.emailInput} />
+          <input type="email" placeholder="ENTER WORK EMAIL ADDR..." className={styles.emailInput} />
           {isLoaded && isSignedIn ? (
              <button className={styles.ctaBtn} onClick={() => router.push('/dashboard')}>Go to Dashboard</button>
           ) : (
-             <button className={styles.ctaBtn} onClick={() => router.push('/sign-up')}>Get Started Free</button>
+             <button className={styles.ctaBtn} onClick={() => router.push('/sign-up')}>GET STARTED</button>
           )}
         </div>
 
         {/* Browser App Preview Mockup */}
         <div className={styles.appPreview}>
           <div className={styles.appHeader}>
-            <div className={styles.dot} style={{ background: '#ef4444' }}></div>
-            <div className={styles.dot} style={{ background: '#f59e0b' }}></div>
-            <div className={styles.dot} style={{ background: '#22c55e' }}></div>
-            <span style={{ fontSize: '0.7rem', color: '#717171', marginLeft: 'auto', marginRight: 'auto', fontFamily: 'monospace' }}>app.hyperflow.com/dashboard</span>
+            <div className={styles.dot} style={{ background: '#ff5f56' }}></div>
+            <div className={styles.dot} style={{ background: '#ffbd2e' }}></div>
+            <div className={styles.dot} style={{ background: '#27c93f' }}></div>
+            <span style={{ fontSize: '0.65rem', color: '#475569', marginLeft: 'auto', marginRight: 'auto', fontFamily: 'monospace', letterSpacing: '0.5px' }}>// COMMAND_CENTER_SHELL // app.glideflow.com/dashboard</span>
           </div>
           
           <div className={styles.mockApp}>
             {/* Sidebar mockup */}
             <aside className={styles.mockSidebar}>
-              <div className={styles.logo} style={{ fontSize: '0.95rem' }}><BrainCircuit size={18} color="#22c55e" /> HYPER-FLOW</div>
+              <div className={styles.logo} style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}><BrainCircuit size={15} color="#06b6d4" /> GLIDEFLOW v2</div>
               <nav className={styles.mockNavList}>
-                <div className={`${styles.mockNavItem} ${styles.mockNavItemActive}`}><Mail size={14} /> Inbox Priorities</div>
-                <div className={styles.mockNavItem}><Calendar size={14} /> Today's Agenda</div>
-                <div className={styles.mockNavItem}><Clock size={14} /> Active Tasks</div>
-                <div className={styles.mockNavItem}><Settings size={14} /> Configurations</div>
+                <div className={`${styles.mockNavItem} ${styles.mockNavItemActive}`}><Mail size={12} /> Priority Index</div>
+                <div className={styles.mockNavItem}><Calendar size={12} /> Sync Agenda</div>
+                <div className={styles.mockNavItem}><Clock size={12} /> Active Cache</div>
+                <div className={styles.mockNavItem}><Settings size={12} /> Config Registry</div>
               </nav>
             </aside>
             
@@ -249,12 +274,12 @@ export default function LandingPage() {
             <main className={styles.mockMain}>
               <div className={styles.mockTitleBar}>
                 <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>Workspace Command Center</h3>
-                  <span style={{ fontSize: '0.7rem', color: '#717171' }}>Pre-fetched database sync active</span>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 900, fontFamily: 'monospace' }}>DATABASE CONTROL PANEL</h3>
+                  <span style={{ fontSize: '0.65rem', color: '#64748b', fontFamily: 'monospace' }}>[SYS_SYNC: SUCCESS] Cache sync active</span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#22c55e', background: 'rgba(34, 197, 94, 0.08)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(34,197,94,0.15)' }}>
-                    ● Synced
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: '#06b6d4', background: 'rgba(6, 182, 212, 0.08)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(6,182,212,0.2)' }}>
+                    ● SYNCHRONIZED
                   </span>
                 </div>
               </div>
@@ -262,48 +287,50 @@ export default function LandingPage() {
               {/* Stats Mock */}
               <div className={styles.mockStatsGrid}>
                 <div className={styles.mockStatCard}>
-                  <div className={styles.mockStatLabel}>Unread Priorities</div>
-                  <div className={styles.mockStatNum} style={{ color: '#ef4444' }}>3</div>
+                  <div className={styles.mockStatLabel}>URGENT ITEMS</div>
+                  <div className={styles.mockStatNum} style={{ color: '#d946ef' }}>3</div>
                 </div>
                 <div className={styles.mockStatCard}>
-                  <div className={styles.mockStatLabel}>Pending Drafts</div>
-                  <div className={styles.mockStatNum} style={{ color: '#f59e0b' }}>4</div>
+                  <div className={styles.mockStatLabel}>UNCOMMITTED DRAFTS</div>
+                  <div className={styles.mockStatNum} style={{ color: '#06b6d4' }}>4</div>
                 </div>
                 <div className={styles.mockStatCard}>
-                  <div className={styles.mockStatLabel}>Next Briefing</div>
-                  <div className={styles.mockStatNum} style={{ color: '#22c55e' }}>10m</div>
+                  <div className={styles.mockStatLabel}>SYNC CYCLE TIME</div>
+                  <div className={styles.mockStatNum} style={{ color: '#34d399' }}>0.4s</div>
                 </div>
               </div>
 
               <div className={styles.mockContentGrid}>
                 {/* AI Briefing Panel Mock */}
-                <div className={styles.mockPanel} style={{ borderLeft: '3px solid #8b5cf6', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.06) 0%, rgba(15, 15, 18, 0.6) 100%)' }}>
-                  <div className={styles.mockPanelTitle} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#a78bfa' }}>
-                    <Sparkles size={12} /> AI Daily Briefing
+                <div className={styles.mockPanel} style={{ borderLeft: '3px solid #d946ef', background: 'linear-gradient(135deg, rgba(217, 70, 239, 0.04) 0%, rgba(6, 6, 12, 0.8) 100%)' }}>
+                  <div className={styles.mockPanelTitle} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#d946ef' }}>
+                    <Sparkles size={12} /> AI WORKFLOW BRIEF
                   </div>
-                  <p style={{ fontSize: '0.75rem', color: '#a1a1aa', lineHeight: 1.4 }}>
-                    Good afternoon! You have 3 urgent emails needing immediate attention. Next sync cycle initiates in 4 mins.
+                  <p style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.4, fontFamily: 'monospace' }}>
+                    &gt; CACHE PRE-FETCH COMPLETE.<br />
+                    &gt; 3 High-priority threads detected.<br />
+                    &gt; Sync cycle loop running optimally.
                   </p>
                 </div>
 
                 {/* Inbox mockup */}
                 <div className={styles.mockPanel}>
                   <div className={styles.mockPanelTitle} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Mail size={12} color="#22c55e" /> Priority Threads
+                    <Mail size={12} color="#06b6d4" /> priority queue
                   </div>
                   <div className={styles.mockRow}>
                     <div>
-                      <div style={{ fontWeight: 'bold' }}>Hitesh Choudhary</div>
-                      <div style={{ color: '#717171', fontSize: '0.65rem' }}>Curriculum design updates</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.75rem' }}>Hitesh Choudhary</div>
+                      <div style={{ color: '#64748b', fontSize: '0.6rem' }}>Curriculum design updates</div>
                     </div>
-                    <span className={styles.mockBadge} style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.15)' }}>Urgent</span>
+                    <span className={styles.mockBadge} style={{ background: 'rgba(217, 70, 239, 0.08)', color: '#fca5a5', border: '1px solid rgba(217,70,239,0.2)' }}>Urgent</span>
                   </div>
                   <div className={styles.mockRow}>
                     <div>
-                      <div style={{ fontWeight: 'bold' }}>Piyush Garg</div>
-                      <div style={{ color: '#717171', fontSize: '0.65rem' }}>Next.js docker configurations</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.75rem' }}>Piyush Garg</div>
+                      <div style={{ color: '#64748b', fontSize: '0.6rem' }}>Next.js docker configurations</div>
                     </div>
-                    <span className={styles.mockBadge} style={{ background: 'rgba(59, 130, 246, 0.08)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.15)' }}>Action</span>
+                    <span className={styles.mockBadge} style={{ background: 'rgba(6, 182, 212, 0.08)', color: '#93c5fd', border: '1px solid rgba(6,182,212,0.2)' }}>Action</span>
                   </div>
                 </div>
               </div>
@@ -313,48 +340,57 @@ export default function LandingPage() {
       </main>
 
       {/* Integrations Banner */}
-      <section className={styles.integrations}>
-        <h3 className={styles.integrationsTitle}>Works seamlessly with your existing stack</h3>
+      <section className={`${styles.integrations} ${styles.animateOnScroll}`}>
+        <h3 className={styles.integrationsTitle}>// CORE API SYNCS INTEGRATED</h3>
         <div className={styles.integrationIcons}>
-          <span>Gmail</span>
-          <span>Outlook</span>
-          <span>Apple Calendar</span>
-          <span>Google Meet</span>
-          <span>Zoom</span>
+          <span className={styles.cascadeItem}>Gmail API</span>
+          <span className={styles.cascadeItem}>Outlook REST</span>
+          <span className={styles.cascadeItem}>CalDAV Sync</span>
+          <span className={styles.cascadeItem}>Google Meet</span>
+          <span className={styles.cascadeItem}>Zoom API</span>
         </div>
       </section>
 
       {/* Interactive Keyboard Shortcuts Sandbox */}
-      <section id="playground" className={styles.sandboxSection}>
-        <div className={styles.pill}>Interactive Sandbox</div>
-        <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>Test Inbox Control Shortcuts</h2>
-        <p style={{ fontSize: '1rem', color: '#a1a1aa', maxWidth: '600px', margin: '0 auto' }}>
-          HyperFlow runs on lightning-fast local cache triggers. Tap these keys on your keyboard now to test the shortcut workspace experience!
+      <section id="playground" className={`${styles.sandboxSection} ${styles.animateOnScroll}`}>
+        <div className={styles.pill}>interactive terminal</div>
+        <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>Zero-Lag Keyboard Routing</h2>
+        <p style={{ fontSize: '1rem', color: '#94a3b8', maxWidth: '600px', margin: '0 auto' }}>
+          Test the cache commands below. Click the holographic buttons directly or type the keys inside the viewport to see execution loops.
         </p>
 
         <div className={styles.sandboxGrid}>
           {/* Key Cards */}
           <div className={styles.sandboxDetails}>
-            <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#22c55e', fontWeight: 700, letterSpacing: '1px' }}>
-              Dynamic Key Triggers
+            <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#06b6d4', fontWeight: 800, letterSpacing: '1.5px', fontFamily: 'monospace' }}>
+              // DEVICEMAP: KEYBOARD SHORTCUTS
             </span>
-            <h3 className={styles.sandboxHeading}>Mouse & Keyboards Combined</h3>
-            <p style={{ fontSize: '0.9rem', color: '#a1a1aa', lineHeight: 1.5 }}>
-              By binding priority operations to optional single-key shortcuts, HyperFlow lets you respond to tasks without searching through nested folders.
+            <h3 className={styles.sandboxHeading}>Command Bindings</h3>
+            <p style={{ fontSize: '0.875rem', color: '#94a3b8', lineHeight: 1.5 }}>
+              Trigger caching structures instantly. Bypass slow client-to-server load queues using single-stroke commands.
             </p>
             
             <div className={styles.sandboxKeysRow}>
-              <div className={`${styles.keyCard} ${activeKey === 'c' ? styles.keyCardActive : ''}`}>
+              <div 
+                className={`${styles.keyCard} ${activeKey === 'c' ? styles.keyCardActive : ''} ${styles.cascadeItem}`}
+                onClick={() => triggerSandboxKey('c')}
+              >
                 <span className={styles.keyChar}>C</span>
-                <span className={styles.keyLabel}>Compose</span>
+                <span className={styles.keyLabel}>COMPOSE</span>
               </div>
-              <div className={`${styles.keyCard} ${activeKey === 'j' ? styles.keyCardActive : ''}`}>
+              <div 
+                className={`${styles.keyCard} ${activeKey === 'j' ? styles.keyCardActive : ''} ${styles.cascadeItem}`}
+                onClick={() => triggerSandboxKey('j')}
+              >
                 <span className={styles.keyChar}>J</span>
-                <span className={styles.keyLabel}>Next Item</span>
+                <span className={styles.keyLabel}>NEXT ITEM</span>
               </div>
-              <div className={`${styles.keyCard} ${activeKey === 'k' ? styles.keyCardActive : ''}`}>
+              <div 
+                className={`${styles.keyCard} ${activeKey === 'k' ? styles.keyCardActive : ''} ${styles.cascadeItem}`}
+                onClick={() => triggerSandboxKey('k')}
+              >
                 <span className={styles.keyChar}>K</span>
-                <span className={styles.keyLabel}>Prev Item</span>
+                <span className={styles.keyLabel}>PREV ITEM</span>
               </div>
             </div>
           </div>
@@ -362,8 +398,8 @@ export default function LandingPage() {
           {/* Simulated Terminal Console */}
           <div className={styles.sandboxConsole}>
             <div className={styles.consoleHeader}>
-              <span>inbox-cache-terminal</span>
-              <span style={{ color: '#22c55e' }}>● active</span>
+              <span>// GLIDEFLOW-CACHE-SHELL</span>
+              <span style={{ color: '#06b6d4' }}>● RUNTIME STATUS: ONLINE</span>
             </div>
             
             <div className={styles.consoleLines}>
@@ -375,37 +411,37 @@ export default function LandingPage() {
               ))}
             </div>
 
-            <div style={{ fontSize: '0.75rem', color: '#717171', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '8px' }}>
-              Tip: Press C, J, or K keys inside browser window
+            <div style={{ fontSize: '0.65rem', color: '#475569', borderTop: '1px solid rgba(6,182,212,0.15)', paddingTop: '8px', fontFamily: 'monospace' }}>
+              INPUT MONITOR: DETECTING WINDOW KEYEVENTS [C, J, K]
             </div>
           </div>
         </div>
       </section>
 
-      {/* Visual Subscription Pricing Section */}
-      <section id="pricing" className={styles.pricingSection}>
-        <div className={styles.pill}>Subscription Pricing</div>
-        <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>Clear, Friendly Pricing Tiers</h2>
-        <p style={{ fontSize: '1rem', color: '#a1a1aa', maxWidth: '560px', margin: '0 auto' }}>
-          Select the subscription tier that matches your workflow needs. Upgrade securely via Razorpay.
+      {/* Subscription Pricing Section */}
+      <section id="pricing" className={`${styles.pricingSection} ${styles.animateOnScroll}`}>
+        <div className={styles.pill}>billing center</div>
+        <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>Subscription Registries</h2>
+        <p style={{ fontSize: '1rem', color: '#94a3b8', maxWidth: '560px', margin: '0 auto' }}>
+          Select your workflow scale below. Transactions are processed securely via Razorpay gateway nodes.
         </p>
 
         <div className={styles.pricingGrid}>
           {/* Free Tier */}
-          <div className={styles.pricingCard}>
+          <div className={`${styles.pricingCard} ${styles.cascadeItem}`}>
             <div>
-              <h3 className={styles.planTitle}>Free Plan</h3>
-              <p className={styles.planDesc}>Perfect for getting started with fast email navigation.</p>
+              <h3 className={styles.planTitle}>Free Shell</h3>
+              <p className={styles.planDesc}>Basic shortcuts and single account synchronization.</p>
               
               <div className={styles.planPrice}>
                 <span className={styles.planCost}>₹0</span>
-                <span className={styles.planPeriod}>/ forever</span>
+                <span className={styles.planPeriod}>/ FOREVER</span>
               </div>
               
               <div className={styles.pricingFeatures}>
-                <div className={styles.pricingFeature}><Check size={14} color="#22c55e" /> 1 synced email inbox account</div>
-                <div className={styles.pricingFeature}><Check size={14} color="#22c55e" /> Today's Agenda calendar views</div>
-                <div className={styles.pricingFeature}><Check size={14} color="#22c55e" /> Interactive shortcuts guide</div>
+                <div className={styles.pricingFeature}><Check size={14} color="#06b6d4" /> 1 synced email inbox</div>
+                <div className={styles.pricingFeature}><Check size={14} color="#06b6d4" /> Cache sync frequency: 15m</div>
+                <div className={styles.pricingFeature}><Check size={14} color="#06b6d4" /> Basic hotkeys setup</div>
               </div>
             </div>
             
@@ -416,28 +452,28 @@ export default function LandingPage() {
                 else router.push('/sign-up');
               }}
             >
-              Get Started Free
+              INITIALIZE SHELL
             </button>
           </div>
 
           {/* Pro Tier (Razorpay Integrated) */}
-          <div className={`${styles.pricingCard} ${styles.pricingCardActive}`}>
-            <span className={styles.pricingBadge}>Recommended</span>
+          <div className={`${styles.pricingCard} ${styles.pricingCardActive} ${styles.cascadeItem}`}>
+            <span className={styles.pricingBadge}>RECOMMENDED PRESAL</span>
             
             <div>
-              <h3 className={styles.planTitle} style={{ color: '#22c55e' }}>Pro Plan</h3>
-              <p className={styles.planDesc}>For power users who need complete workspace sync capabilities.</p>
+              <h3 className={styles.planTitle} style={{ color: '#d946ef' }}>Pro Center</h3>
+              <p className={styles.planDesc}>Infinite cached databases and AI-context engine mapping.</p>
               
               <div className={styles.planPrice}>
                 <span className={styles.planCost}>₹1,299</span>
-                <span className={styles.planPeriod}>/ month (approx. $15)</span>
+                <span className={styles.planPeriod}>/ MONTH (approx. $15)</span>
               </div>
               
               <div className={styles.pricingFeatures}>
-                <div className={styles.pricingFeature}><Check size={14} color="#22c55e" /> Unlimited connected email inboxes</div>
-                <div className={styles.pricingFeature}><Check size={14} color="#22c55e" /> AI Daily Briefings (Gemini context)</div>
-                <div className={styles.pricingFeature}><Check size={14} color="#22c55e" /> High-speed server synchronization</div>
-                <div className={styles.pricingFeature}><Check size={14} color="#22c55e" /> Custom automation rules engine</div>
+                <div className={styles.pricingFeature}><Check size={14} color="#06b6d4" /> Unlimited connected inboxes</div>
+                <div className={styles.pricingFeature}><Check size={14} color="#06b6d4" /> AI daily logs summary (Gemini)</div>
+                <div className={styles.pricingFeature}><Check size={14} color="#06b6d4" /> High-speed cache pre-fetching</div>
+                <div className={styles.pricingFeature}><Check size={14} color="#06b6d4" /> Smart automation scripts</div>
               </div>
             </div>
             
@@ -448,80 +484,80 @@ export default function LandingPage() {
                 else router.push('/sign-in?redirect=/checkout?plan=Pro');
               }}
             >
-              Upgrade via Razorpay <ArrowRight size={14} style={{ marginLeft: '4px', display: 'inline' }} />
+              UPGRADE SECURELY <ArrowRight size={14} style={{ marginLeft: '4px', display: 'inline' }} />
             </button>
           </div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section id="features" className={styles.features}>
-        <h2 className={styles.sectionTitle}>Built for uncompromised productivity</h2>
+      <section id="features" className={`${styles.features} ${styles.animateOnScroll}`}>
+        <h2 className={styles.sectionTitle}>engineered for performance</h2>
         <div className={styles.featuresGrid}>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIconWrapper}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"></path></svg></div>
-            <h3 className={styles.featureTitle}>Mouse or Keyboard</h3>
-            <p className={styles.featureDesc}>Click through items with ease, or fly through them with keyboard hotkeys. Choose what fits your speed.</p>
+          <div className={`${styles.featureCard} ${styles.cascadeItem}`}>
+            <div className={styles.featureIconWrapper}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"></path></svg></div>
+            <h3 className={styles.featureTitle}>HYBRID INTERFACES</h3>
+            <p className={styles.featureDesc}>Click elements, scroll grids, or fly through lists using optimized keyboard navigation shortcuts.</p>
           </div>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIconWrapper}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
-            <h3 className={styles.featureTitle}>Zero-Wait Cache</h3>
-            <p className={styles.featureDesc}>Local pre-fetch sync saves incoming emails and calendar details. Stop waiting for pages to spin.</p>
+          <div className={`${styles.featureCard} ${styles.cascadeItem}`}>
+            <div className={styles.featureIconWrapper}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+            <h3 className={styles.featureTitle}>ZERO-LAG CACHING</h3>
+            <p className={styles.featureDesc}>Database layers are mirrored to local cache, loading indexes instantly without browser loaders spinning.</p>
           </div>
-          <div className={styles.featureCard}>
-            <div className={styles.featureIconWrapper}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
-            <h3 className={styles.featureTitle}>Side-by-Side Panel</h3>
-            <p className={styles.featureDesc}>Your inbox priorities and calendar exist on a single dashboard layout. Stop swapping browser tabs.</p>
+          <div className={`${styles.featureCard} ${styles.cascadeItem}`}>
+            <div className={styles.featureIconWrapper}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
+            <h3 className={styles.featureTitle}>DUAL COMMAND BOARDS</h3>
+            <p className={styles.featureDesc}>Your mail threads and daily agenda calendars are synchronized on a side-by-side cockpit layout.</p>
           </div>
         </div>
       </section>
 
       {/* How it Works Section */}
-      <section className={styles.howItWorks}>
-        <h2 className={styles.sectionTitle}>Get to Inbox Zero in 3 steps</h2>
+      <section className={`${styles.howItWorks} ${styles.animateOnScroll}`}>
+        <h2 className={styles.sectionTitle}>three-step deployment</h2>
         <div className={styles.stepsGrid}>
-          <div className={styles.stepCard}>
-            <div className={styles.stepNumber}>1</div>
-            <h3 className={styles.stepTitle}>Connect Account</h3>
-            <p className={styles.stepDesc}>Securely sync your Google or Outlook account. We pull your data into our high-speed local cache.</p>
+          <div className={`${styles.stepCard} ${styles.cascadeItem}`}>
+            <div className={styles.stepNumber}>01</div>
+            <h3 className={styles.stepTitle}>link token</h3>
+            <p className={styles.stepDesc}>Securely sync Google/Outlook nodes with OAuth permissions to mirror inbox metadata.</p>
           </div>
-          <div className={styles.stepCard}>
-            <div className={styles.stepNumber}>2</div>
-            <h3 className={styles.stepTitle}>Learn the Shortcuts</h3>
-            <p className={styles.stepDesc}>Follow our quick 2-minute onboarding to master the essential keyboard binds.</p>
+          <div className={`${styles.stepCard} ${styles.cascadeItem}`}>
+            <div className={styles.stepNumber}>02</div>
+            <h3 className={styles.stepTitle}>sync cache</h3>
+            <p className={styles.stepDesc}>Our pre-fetch routine compiles threads and calendar objects to local index storage.</p>
           </div>
-          <div className={styles.stepCard}>
-            <div className={styles.stepNumber}>3</div>
-            <h3 className={styles.stepTitle}>Enter the Flow</h3>
-            <p className={styles.stepDesc}>Experience what it feels like when your software moves as fast as you think.</p>
+          <div className={`${styles.stepCard} ${styles.cascadeItem}`}>
+            <div className={styles.stepNumber}>03</div>
+            <h3 className={styles.stepTitle}>execute actions</h3>
+            <p className={styles.stepDesc}>Navigate commands, search caches, and process messages without leaving the home screen.</p>
           </div>
         </div>
       </section>
 
       {/* Testimonial Section */}
-      <section className={styles.testimonial}>
+      <section className={`${styles.testimonial} ${styles.animateOnScroll}`}>
         <div className={styles.quote}>
-          "I used to dread checking my email. With HyperFlow, I clear out 50+ emails and schedule my day in under 3 minutes. It's dangerously fast."
+          "GlideFlow cuts out the clutter. The hotkeys combined with instant local pre-fetching makes searching through 6 months of archive emails take milliseconds. Incredible."
         </div>
-        <div className={styles.author}>Anonymous Alpha Tester</div>
-        <div className={styles.authorRole}>Software Engineer</div>
+        <div className={styles.author}>// HACKATHON BETA LOGS: ENG NODE</div>
+        <div className={styles.authorRole}>System Architect</div>
       </section>
 
-      {/* FAQ Section with Accordion Logic */}
-      <section id="faq" className={styles.faqSection}>
-        <h2 className={styles.faqHeading}>Frequently Asked Questions</h2>
+      {/* FAQ Section */}
+      <section id="faq" className={`${styles.faqSection} ${styles.animateOnScroll}`}>
+        <h2 className={styles.faqHeading}>technical questions</h2>
         <div className={styles.faqGrid}>
           {FAQS.map((faq, index) => {
             const isOpen = openFaq === index;
             return (
-              <div key={index} className={styles.faqCard}>
+              <div key={index} className={`${styles.faqCard} ${styles.cascadeItem}`}>
                 <div 
                   className={styles.faqQWrapper} 
                   onClick={() => toggleFaq(index)}
                 >
                   <div className={styles.faqQ}>{faq.q}</div>
                   <div className={`${styles.faqIcon} ${isOpen ? styles.faqIconOpen : ''}`}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="12" y1="5" x2="12" y2="19"></line>
                       <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>
@@ -542,16 +578,16 @@ export default function LandingPage() {
       <footer className={styles.footer}>
         <div className={styles.footerBrand}>
           <div className={styles.logo}>
-            <BrainCircuit width="20" height="20" color="#22c55e" />
-            hyper-flow
+            <BrainCircuit width="18" height="18" color="#06b6d4" />
+            glide-flow //
           </div>
           <p className={styles.footerDesc}>
-            Redefining productivity for developers and professionals with high-performance, keyboard-driven workflows.
+            Deploying high-performance keyboard cockpits and cached workspaces for busy operators.
           </p>
         </div>
         
         <div>
-          <h4 className={styles.footerTitle}>Product</h4>
+          <h4 className={styles.footerTitle}>node-registry</h4>
           <div className={styles.footerLinks}>
             <span className={styles.footerLink}>Features</span>
             <span className={styles.footerLink}>Integrations</span>
@@ -561,7 +597,7 @@ export default function LandingPage() {
         </div>
 
         <div>
-          <h4 className={styles.footerTitle}>Resources</h4>
+          <h4 className={styles.footerTitle}>documents</h4>
           <div className={styles.footerLinks}>
             <span className={styles.footerLink}>Documentation</span>
             <span className={styles.footerLink}>API Reference</span>
@@ -571,7 +607,7 @@ export default function LandingPage() {
         </div>
 
         <div>
-          <h4 className={styles.footerTitle}>Legal</h4>
+          <h4 className={styles.footerTitle}>legal</h4>
           <div className={styles.footerLinks}>
             <span className={styles.footerLink}>Privacy Policy</span>
             <span className={styles.footerLink}>Terms of Service</span>
@@ -580,7 +616,7 @@ export default function LandingPage() {
         </div>
 
         <div className={styles.copyright}>
-          © 2026 HyperFlow Inc. Built for the Hackathon.
+          © 2026 GLIDEFLOW OPERATING SYSTEM CORP. ALL PORT TERMINALS SYNCED.
         </div>
       </footer>
 

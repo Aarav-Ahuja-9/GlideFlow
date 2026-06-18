@@ -4,7 +4,13 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 
 const prismaClientSingleton = () => {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const connString = (process.env.DATABASE_URL || '').split('?')[0];
+  const pool = new Pool({ 
+    connectionString: connString,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
   const adapter = new PrismaPg(pool);
   return new PrismaClient({
     adapter,

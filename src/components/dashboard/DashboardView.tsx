@@ -104,8 +104,16 @@ export const DashboardView = () => {
   const [aiUsage, setAiUsage] = useState<{ count: number; max: number; isPro: boolean } | null>(null);
   const [emails, setEmails] = useState<any[]>([]);
   const [schedule, setSchedule] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState({
+    unread: 12,
+    urgentEmails: 2,
+    drafts: 4,
+    nextEventTime: 'None',
+    meetingsTotal: 0,
+    meetingsLeft: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
   
   // Modal (Popup) state
   const [selectedItem, setSelectedItem] = useState<{ type: 'email' | 'meeting', data: any } | null>(null);
@@ -188,6 +196,7 @@ export const DashboardView = () => {
       const month = baseDate.getMonth() + 1; // 6 for June
       
       let fetchedSchedule: any[] = [];
+      let calendarAuthUrl = null;
       try {
         const res = await fetch(`/api/calendar?year=${year}&month=${month}`);
         const json = await res.json();
@@ -203,6 +212,8 @@ export const DashboardView = () => {
                    eDate === baseDate.getDate();
           });
           fetchedSchedule.sort((a, b) => a.startDateObj.getTime() - b.startDateObj.getTime());
+        } else if (json.error === 'Approval Required' && json.approvalUrl) {
+          calendarAuthUrl = json.approvalUrl;
         }
       } catch (e) {
         console.error("Failed to fetch calendar events for dashboard:", e);
@@ -210,8 +221,9 @@ export const DashboardView = () => {
 
       // Load or Fetch Gmail emails
       let fetchedEmails = [];
+      let gmailAuthUrl = null;
       try {
-        const cached = localStorage.getItem('hyperflow_inbox_cache');
+        const cached = localStorage.getItem('glideflow_inbox_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -219,6 +231,22 @@ export const DashboardView = () => {
           }
         }
       } catch (e) {}
+
+      try {
+        const res = await fetch('/api/test-gmail');
+        const json = await res.json();
+        if (!json.success && json.error === 'Approval Required' && json.approvalUrl) {
+          gmailAuthUrl = json.approvalUrl;
+        }
+      } catch (e) {
+        console.error("Failed to fetch Gmail for auth check:", e);
+      }
+
+      if (gmailAuthUrl || calendarAuthUrl) {
+        setAuthUrl(gmailAuthUrl || calendarAuthUrl);
+      } else {
+        setAuthUrl(null);
+      }
 
       // Fallback emails if no cache is available
       if (fetchedEmails.length === 0) {
@@ -276,8 +304,10 @@ export const DashboardView = () => {
       setSchedule(fetchedSchedule);
       setIsLoading(false);
 
-      // Trigger AI briefing after data is loaded
-      fetchAiBriefing(fetchedEmails, fetchedSchedule);
+      // Trigger AI briefing after data is loaded if auth is cleared
+      if (!gmailAuthUrl && !calendarAuthUrl) {
+        fetchAiBriefing(fetchedEmails, fetchedSchedule);
+      }
     };
 
     fetchDashboardData();
@@ -317,8 +347,8 @@ export const DashboardView = () => {
             </div>
             Unread Emails
           </div>
-          <div className={styles.statValue} style={{ color: '#ededed' }}>{stats?.unread}</div>
-          <p style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '4px' }}>{stats?.urgentEmails} urgent</p>
+          <div className={styles.statValue} style={{ color: '#ededed' }}>{stats.unread}</div>
+          <p className={styles.statSubtitle} style={{ color: '#ef4444' }}>{stats.urgentEmails} urgent</p>
         </div>
 
         {/* Box 2: Drafts Pending */}
@@ -329,8 +359,8 @@ export const DashboardView = () => {
             </div>
             Drafts Pending
           </div>
-          <div className={styles.statValue} style={{ color: '#f59e0b' }}>{stats?.drafts}</div>
-          <p style={{ fontSize: '0.75rem', color: '#a1a1aa', marginTop: '4px' }}>Awaiting completion</p>
+          <div className={styles.statValue} style={{ color: '#f59e0b' }}>{stats.drafts}</div>
+          <p className={styles.statSubtitle} style={{ color: '#a1a1aa' }}>Awaiting completion</p>
         </div>
 
         {/* Box 3: Next Event */}
@@ -341,9 +371,10 @@ export const DashboardView = () => {
             </div>
             Next Event
           </div>
-          <div className={styles.statValue} style={{ color: '#22c55e', fontSize: '1.6rem' }}>{stats?.nextEventTime}</div>
-          <p style={{ fontSize: '0.75rem', color: '#a1a1aa', marginTop: '4px' }}>Starts in 48 mins</p>
+          <div className={styles.statValue} style={{ color: '#22c55e', fontSize: '1.6rem' }}>{stats.nextEventTime}</div>
+          <p className={styles.statSubtitle} style={{ color: '#a1a1aa' }}>Starts in 48 mins</p>
         </div>
+
 
         {/* Box 4: Meetings Today */}
         <div className={styles.card}>
@@ -353,8 +384,8 @@ export const DashboardView = () => {
             </div>
             Meetings Today
           </div>
-          <div className={styles.statValue} style={{ color: '#3b82f6' }}>{stats?.meetingsTotal}</div>
-          <p style={{ fontSize: '0.75rem', color: '#a1a1aa', marginTop: '4px' }}>{stats?.meetingsLeft} remaining</p>
+          <div className={styles.statValue} style={{ color: '#3b82f6' }}>{stats.meetingsTotal}</div>
+          <p className={styles.statSubtitle} style={{ color: '#a1a1aa' }}>{stats.meetingsLeft} remaining</p>
         </div>
 
       </div>
@@ -374,25 +405,61 @@ export const DashboardView = () => {
               <Sparkles size={14} style={{ animation: 'pulse-glow 2s infinite alternate' }} />
             </div>
             <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>AI Daily Briefing</h3>
-            <span style={{ fontSize: '0.65rem', background: 'rgba(139, 92, 246, 0.12)', color: '#c4b5fd', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{aiProvider}</span>
-            {aiUsage && !aiUsage.isPro && (
-              <span style={{ fontSize: '0.72rem', color: '#a1a1aa', marginLeft: '12px' }}>
-                Usage: <b>{aiUsage.count}</b> / {aiUsage.max} free actions
-              </span>
+            {!authUrl && (
+              <>
+                <span style={{ fontSize: '0.65rem', background: 'rgba(139, 92, 246, 0.12)', color: '#c4b5fd', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{aiProvider}</span>
+                {aiUsage && !aiUsage.isPro && (
+                  <span style={{ fontSize: '0.72rem', color: '#a1a1aa', marginLeft: '12px' }}>
+                    Usage: <b>{aiUsage.count}</b> / {aiUsage.max} free actions
+                  </span>
+                )}
+              </>
             )}
           </div>
-          <button
-            onClick={() => fetchAiBriefing(emails, schedule)}
-            disabled={aiBriefingLoading}
-            style={{ background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.15)', color: '#a78bfa', cursor: aiBriefingLoading ? 'wait' : 'pointer', padding: '5px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: 600, transition: 'all 0.2s' }}
-            onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)')}
-            onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(139, 92, 246, 0.08)')}
-          >
-            <RefreshCw size={12} style={aiBriefingLoading ? { animation: 'spin 1s linear infinite' } : {}} />
-            {aiBriefingLoading ? 'Generating...' : 'Refresh'}
-          </button>
+          {!authUrl && (
+            <button
+              onClick={() => fetchAiBriefing(emails, schedule)}
+              disabled={aiBriefingLoading}
+              style={{ background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.15)', color: '#a78bfa', cursor: aiBriefingLoading ? 'wait' : 'pointer', padding: '5px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: 600, transition: 'all 0.2s' }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(139, 92, 246, 0.08)')}
+            >
+              <RefreshCw size={12} style={aiBriefingLoading ? { animation: 'spin 1s linear infinite' } : {}} />
+              {aiBriefingLoading ? 'Generating...' : 'Refresh'}
+            </button>
+          )}
         </div>
-        {aiBriefingLoading && !aiBriefingDisplayed ? (
+        {authUrl ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '6px 0' }}>
+            <p style={{ color: '#f59e0b', fontSize: '0.9rem', lineHeight: '1.5', margin: 0 }}>
+              <b>Google Account Sync Required:</b> Link your Google Account to enable the AI Morning Briefing and sync your workspace emails and calendar items.
+            </p>
+            <div>
+              <a 
+                href={authUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ 
+                  background: '#f59e0b', 
+                  color: '#000', 
+                  padding: '8px 16px', 
+                  borderRadius: '6px', 
+                  fontWeight: 700, 
+                  textDecoration: 'none',
+                  fontSize: '0.85rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
+                onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                Connect Google Account <ExternalLink size={14} />
+              </a>
+            </div>
+          </div>
+        ) : aiBriefingLoading && !aiBriefingDisplayed ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ height: '14px', borderRadius: '4px', background: 'rgba(139, 92, 246, 0.08)', animation: 'shimmer 1.5s ease-in-out infinite', width: '100%' }} />
             <div style={{ height: '14px', borderRadius: '4px', background: 'rgba(139, 92, 246, 0.08)', animation: 'shimmer 1.5s ease-in-out infinite 0.2s', width: '85%' }} />
@@ -699,7 +766,7 @@ export const DashboardView = () => {
               </div>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff', margin: 0 }}>Free Trial Limit Reached</h2>
               <p style={{ fontSize: '0.9rem', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-                You have used your 5 free AI requests. Upgrade to <b>HyperFlow Pro</b> to unlock unlimited AI scheduling, drafting, and summaries.
+                You have used your 5 free AI requests. Upgrade to <b>GlideFlow Pro</b> to unlock unlimited AI scheduling, drafting, and summaries.
               </p>
             </div>
 

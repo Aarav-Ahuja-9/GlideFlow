@@ -16,8 +16,8 @@ async function callAI(prompt: string): Promise<{ text: string; provider: string 
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${openRouterApiKey}`,
-        'HTTP-Referer': 'https://hyper-flow.com',
-        'X-Title': 'Hyper-Flow',
+        'HTTP-Referer': 'https://glide-flow.com',
+        'X-Title': 'GlideFlow',
       },
       body: JSON.stringify({
         model: model,
@@ -214,7 +214,7 @@ Return format: [{"tone":"Professional","text":"..."},{"tone":"Casual","text":"..
         `${i + 1}. ${e.title || 'Untitled'} at ${e.time || 'TBD'} (${e.duration || 'unknown duration'}) — ${e.status || 'scheduled'}`
       ).join('\n');
 
-      const prompt = `You are a friendly AI assistant on a productivity dashboard called "Hyper-Flow".
+      const prompt = `You are a friendly AI assistant on a productivity dashboard called "GlideFlow".
 Generate a personalized daily briefing in 3-4 sentences. Be warm, insightful, and action-oriented.
 Mention the most important emails and upcoming meetings by name. Suggest priorities.
 Do NOT use markdown. Write plain text only. Address the user directly as "you".

@@ -14,6 +14,7 @@ function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planParam = searchParams.get('plan') || 'Pro';
+  const basePrice = planParam === 'Plus' ? 2499 : 1299;
 
   const { user, isLoaded: isUserLoaded } = useUser();
 
@@ -23,11 +24,13 @@ function CheckoutContent() {
   const [phone, setPhone] = useState('');
   const [coupon, setCoupon] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [couponError, setCouponError] = useState('');
+  const [checkoutError, setCheckoutError] = useState('');
   
   // Payment states
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isSandbox, setIsSandbox] = useState(true); // Default to true to allow easy testing
   const [isSuccess, setIsSuccess] = useState(false);
   const [receiptDetails, setReceiptDetails] = useState<any>(null);
 
@@ -44,17 +47,28 @@ function CheckoutContent() {
     const code = coupon.trim().toUpperCase();
     if (!code) return;
 
-    // Support any code starting with standard workspace prefixes generated in Settings
-    const validPrefixes = ['FLOW', 'CODE', 'SYNC', 'ZERO', 'HYPER', 'WAVE'];
-    const isValid = validPrefixes.some(prefix => code.startsWith(prefix));
+    const fiftyPercentPrefixes = ['FLOW', 'CODE', 'SYNC', 'ZERO', 'HYPER', 'WAVE'];
 
-    if (isValid || code === 'DEMO50') {
+    if (code === 'DEMO99' || code === 'FLOW99') {
+      setDiscountPercent(99);
       setCouponApplied(true);
+      setCouponCode(code);
       setCouponError('');
-    } else {
-      setCouponError('Invalid promo coupon code. Try FLOW123 or DEMO50.');
-      setCouponApplied(false);
+      return;
     }
+
+    if (code === 'DEMO50' || fiftyPercentPrefixes.some(prefix => code.startsWith(prefix))) {
+      setDiscountPercent(50);
+      setCouponApplied(true);
+      setCouponCode(code);
+      setCouponError('');
+      return;
+    }
+
+    setCouponError('Invalid promo coupon code. Try FLOW123, DEMO50, FLOW99, or DEMO99.');
+    setCouponApplied(false);
+    setCouponCode('');
+    setDiscountPercent(0);
   };
 
   const handlePayment = async () => {
@@ -72,7 +86,7 @@ function CheckoutContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plan: planParam,
-          couponApplied,
+          couponCode: couponApplied ? couponCode : '',
         }),
       });
 
@@ -81,47 +95,6 @@ function CheckoutContent() {
         throw new Error(orderData.error || 'Failed to create payment order');
       }
 
-      // Check if we are using the simulation/sandbox mode or real Razorpay
-      const useSandboxSimulation = isSandbox || orderData.isMocked;
-
-      if (useSandboxSimulation) {
-        // Simulate Sandbox Checkout
-        console.log('Simulating sandbox payment transaction...');
-        
-        // Delay to make it feel realistic and satisfy transition requirements
-        await new Promise(r => setTimeout(r, 1500));
-
-        // 2. Call success endpoint to update Clerk user metadata
-        const successRes = await fetch('/api/checkout/success', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            razorpay_order_id: orderData.orderId,
-            razorpay_payment_id: `pay_mock_${Math.random().toString(36).substring(2, 11)}`,
-            razorpay_signature: 'simulated_signature_hash',
-            isMocked: true
-          }),
-        });
-
-        const successData = await successRes.json();
-        if (!successData.success) {
-          throw new Error(successData.error || 'Failed to verify payment');
-        }
-
-        setReceiptDetails({
-          orderId: orderData.orderId,
-          paymentId: `pay_mock_${Math.random().toString(36).substring(2, 11)}`,
-          amount: couponApplied ? '₹649.00' : '₹1,299.00',
-          plan: 'HyperFlow Pro Plan',
-          date: new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
-        });
-
-        setIsSuccess(true);
-        setIsProcessing(false);
-        return;
-      }
-
-      // Live Razorpay payment execution
       if (!(window as any).Razorpay) {
         throw new Error('Razorpay SDK script not loaded. Please wait a second and retry.');
       }
@@ -130,11 +103,20 @@ function CheckoutContent() {
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
-        name: 'HyperFlow Inc.',
+        name: 'GlideFlow Inc.',
         description: `${planParam} Plan Subscription`,
         order_id: orderData.orderId,
+        prefill: {
+          name,
+          email,
+          contact: phone,
+        },
+        theme: {
+          color: '#22c55e',
+        },
         handler: async function (response: any) {
           setIsProcessing(true);
+          setCheckoutError('');
           try {
             const verifyRes = await fetch('/api/checkout/success', {
               method: 'POST',
@@ -143,7 +125,7 @@ function CheckoutContent() {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                isMocked: false,
+                plan: planParam,
               }),
             });
 
@@ -155,29 +137,34 @@ function CheckoutContent() {
             setReceiptDetails({
               orderId: response.razorpay_order_id,
               paymentId: response.razorpay_payment_id,
-              amount: couponApplied ? '₹649.00' : '₹1,299.00',
-              plan: 'HyperFlow Pro Plan',
+              amount: `₹${Math.max(1, Math.round(basePrice * (100 - discountPercent) / 100)).toLocaleString()}.00`,
+              plan: `GlideFlow ${planParam} Plan`,
               date: new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
             });
 
             setIsSuccess(true);
           } catch (err: any) {
-            alert(`Payment success handling failed: ${err.message}`);
+            setCheckoutError(err?.message || 'Payment verification failed.');
+            console.error('Payment verification failure', err);
           } finally {
             setIsProcessing(false);
           }
         },
-        prefill: {
-          name,
-          email,
-          contact: phone,
-        },
-        theme: {
-          color: '#22c55e',
+        modal: {
+          ondismiss: () => {
+            setIsProcessing(false);
+            setCheckoutError('Payment was cancelled. Please try again if you still want to subscribe.');
+          },
         },
       };
 
       const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        setIsProcessing(false);
+        setCheckoutError('Payment failed. Please check your details or try a different card.');
+        console.error('Razorpay payment failed', response);
+      });
+
       rzp.open();
       setIsProcessing(false);
 
@@ -246,7 +233,7 @@ function CheckoutContent() {
       <header className={styles.navbar}>
         <div className={styles.logo} onClick={() => router.push('/')}>
           <BrainCircuit color="#22c55e" size={24} />
-          <span>hyper-flow</span>
+          <span>glide-flow</span>
         </div>
         <button className={styles.backBtn} onClick={() => router.push('/dashboard')}>
           <ArrowLeft size={16} /> Return to Settings
@@ -260,21 +247,6 @@ function CheckoutContent() {
             <CreditCard size={20} color="#22c55e" /> Billing & Checkout Details
           </h2>
           
-          <div className={styles.sandboxBanner}>
-            <div>
-              <span style={{ fontWeight: 'bold' }}>Demo Sandbox Mode: </span>
-              {isSandbox 
-                ? 'ON. Payments will be simulated locally. You will not be charged real money.' 
-                : 'OFF. Real Razorpay modal will open if valid API keys are configured.'}
-            </div>
-            <button 
-              className={styles.sandboxToggle}
-              onClick={() => setIsSandbox(!isSandbox)}
-            >
-              Toggle {isSandbox ? 'OFF (Live Mode)' : 'ON (Simulated Mode)'}
-            </button>
-          </div>
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Billing Name</label>
@@ -314,7 +286,7 @@ function CheckoutContent() {
               <div className={styles.couponWrapper}>
                 <input 
                   type="text" 
-                  placeholder="e.g. FLOW123" 
+                  placeholder="e.g. FLOW123 or DEMO99" 
                   className={`${styles.input} ${styles.couponInput}`} 
                   value={coupon}
                   onChange={(e) => setCoupon(e.target.value)}
@@ -330,7 +302,7 @@ function CheckoutContent() {
               </div>
               {couponApplied && (
                 <div className={styles.couponSuccess}>
-                  <Check size={14} /> 50% discount successfully applied!
+                  <Check size={14} /> {discountPercent}% discount successfully applied for {couponCode}!
                 </div>
               )}
               {couponError && (
@@ -353,10 +325,16 @@ function CheckoutContent() {
                 </>
               ) : (
                 <>
-                  Pay {couponApplied ? '₹649.00' : '₹1,299.00'} with Razorpay
+                  Pay ₹{Math.max(1, Math.round(basePrice * (100 - discountPercent) / 100)).toLocaleString()}.00 with Razorpay
                 </>
               )}
             </button>
+
+            {checkoutError && (
+              <div style={{ color: '#f87171', fontSize: '0.9rem', marginTop: '0.75rem', textAlign: 'center' }}>
+                {checkoutError}
+              </div>
+            )}
             
             <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textAlign: 'center', marginTop: '1rem' }}>
               Secured SSL encryption. By upgrading, you agree to our Terms and Privacy policies.
@@ -370,19 +348,21 @@ function CheckoutContent() {
             <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--accent-green)', fontWeight: 700, letterSpacing: '1px' }}>
               Selected Plan
             </span>
-            <h2 className={styles.planName}>HyperFlow Pro</h2>
+            <h2 className={styles.planName}>GlideFlow {planParam}</h2>
             <p className={styles.planDesc}>
-              A professional-grade inbox command center for high-velocity builders.
+              {planParam === 'Plus' 
+                ? 'Team-grade inbox command center with custom rules and direct collaboration.' 
+                : 'A professional-grade inbox command center for high-velocity builders.'}
             </p>
           </div>
 
           <div className={styles.priceDisplay}>
             <span className={styles.priceAmount}>
-              {couponApplied ? '₹649' : '₹1,299'}
+              {`₹${Math.max(1, Math.round(basePrice * (100 - discountPercent) / 100)).toLocaleString()}`}
             </span>
             <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>/ month</span>
             {couponApplied && (
-              <span className={styles.priceOriginal}>₹1,299</span>
+              <span className={styles.priceOriginal}>₹{basePrice.toLocaleString()}</span>
             )}
           </div>
 
@@ -412,12 +392,12 @@ function CheckoutContent() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               <span>Subtotal:</span>
-              <span>₹1,299.00</span>
+              <span>₹{basePrice.toLocaleString()}.00</span>
             </div>
             {couponApplied && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--accent-green)' }}>
-                <span>Promo Discount (50%):</span>
-                <span>-₹650.00</span>
+                <span>Promo Discount ({discountPercent}%):</span>
+                <span>-₹{Math.max(1, Math.round(basePrice * discountPercent / 100)).toLocaleString()}.00</span>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -429,14 +409,14 @@ function CheckoutContent() {
             
             <div className={styles.summaryTotalRow}>
               <span>Total:</span>
-              <span>{couponApplied ? '₹649.00' : '₹1,299.00'}</span>
+              <span>{`₹${Math.max(1, Math.round(basePrice * (100 - discountPercent) / 100)).toLocaleString()}.00`}</span>
             </div>
           </div>
         </div>
       </main>
 
       <footer style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-dim)', fontSize: '0.8rem', borderTop: '1px solid var(--border-glow)', background: 'var(--bg-sidebar)' }}>
-        © 2026 HyperFlow Inc. Powered by Razorpay Payments.
+        © 2026 GlideFlow Inc. Powered by Razorpay Payments.
       </footer>
       
       <style>{`

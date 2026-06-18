@@ -1,5 +1,5 @@
 {
-  "name": "hyper-flow",
+  "name": "glide-flow",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -14,13 +14,14 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
-    "prisma": "^7.8.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.1",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.18.0",
     "next": "16.2.9",
     "pg": "^8.21.0",
+    "prisma": "^7.8.0",
+    "razorpay": "^2.9.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",

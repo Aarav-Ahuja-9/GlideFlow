@@ -39,9 +39,9 @@ const INITIAL_EMAILS = [
   },
   { 
     id: 5, from: 'Vercel Team', senderEmail: 'deployments@vercel.com', initials: 'VC', 
-    subject: 'Production build succeeded - hyper-flow', priority: 'Updates', time: 'Yesterday', 
+    subject: 'Production build succeeded - glide-flow', priority: 'Updates', time: 'Yesterday', 
     snippet: 'Branch main is active and routing 100% of traffic...', 
-    fullBody: "Project: hyper-flow\nBranch: main\nCommit: 7f58a2d\nDomain: hyperflow.com\n\nStatus: Ready. Your build completed in 42 seconds and is live worldwide.",
+    fullBody: "Project: glide-flow\nBranch: main\nCommit: 7f58a2d\nDomain: glideflow.com\n\nStatus: Ready. Your build completed in 42 seconds and is live worldwide.",
     hasAttachment: false, requiresReply: false 
   },
   { 
@@ -57,7 +57,7 @@ export default function InboxView() {
   const [emails, setEmails] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const cached = localStorage.getItem('hyperflow_inbox_cache');
+        const cached = localStorage.getItem('glideflow_inbox_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -73,7 +73,7 @@ export default function InboxView() {
   const [loading, setLoading] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const cached = localStorage.getItem('hyperflow_inbox_cache');
+        const cached = localStorage.getItem('glideflow_inbox_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -125,6 +125,7 @@ export default function InboxView() {
   // AI Draft states
   const [aiDraftPrompt, setAiDraftPrompt] = useState('');
   const [aiDraftLoading, setAiDraftLoading] = useState(false);
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
 
   const handleAiDraft = async () => {
     if (!aiDraftPrompt.trim() || !selectedEmail) return;
@@ -182,7 +183,7 @@ export default function InboxView() {
           const next = prev.map(item => 
             item.id === emailId ? { ...json.data, loading: false } : item
           );
-          localStorage.setItem('hyperflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
+          localStorage.setItem('glideflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
           return next;
         });
       } else if (active) {
@@ -204,7 +205,7 @@ export default function InboxView() {
               requiresReply: false 
             } : item
           );
-          localStorage.setItem('hyperflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
+          localStorage.setItem('glideflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
           return next;
         });
       }
@@ -228,7 +229,7 @@ export default function InboxView() {
               requiresReply: false 
             } : item
           );
-          localStorage.setItem('hyperflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
+          localStorage.setItem('glideflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
           return next;
         });
       }
@@ -254,6 +255,7 @@ export default function InboxView() {
           if (json.success && Array.isArray(json.messages)) {
             setNextPageToken(json.nextPageToken || null);
             setError(null);
+            setAuthUrl(null);
             setLoading(false);
             setIsSyncing(true);
             setSyncPageCount(1);
@@ -266,32 +268,39 @@ export default function InboxView() {
                 }
                 return {
                   id: m.id,
-                  loading: true,
-                  from: '',
-                  senderEmail: '',
-                  initials: '',
-                  subject: '',
-                  priority: '',
-                  time: '',
-                  snippet: '',
-                  fullBody: '',
-                  hasAttachment: false,
-                  attachmentName: '',
-                  requiresReply: false
+                  loading: m.loading !== undefined ? m.loading : true,
+                  from: m.from || '',
+                  senderEmail: m.senderEmail || '',
+                  initials: m.initials || '',
+                  subject: m.subject || '',
+                  priority: m.priority || '',
+                  time: m.time || '',
+                  snippet: m.snippet || '',
+                  fullBody: m.fullBody || '',
+                  hasAttachment: m.hasAttachment || false,
+                  attachmentName: m.attachmentName || '',
+                  requiresReply: m.requiresReply || false
                 };
               });
 
-              setTimeout(() => {
-                reconciled.forEach((p: any) => {
-                  if (p.loading) {
-                    fetchEmailDetail(p.id, active);
-                  }
-                });
+              // ❌ Removed parallel fetch block as requested by user
+              /*
+              setTimeout(async () => {
+                const loadingItems = reconciled.filter((p: any) => p.loading);
+                for (let i = 0; i < loadingItems.length; i += 6) {
+                  if (!active) break;
+                  const batch = loadingItems.slice(i, i + 6);
+                  await Promise.all(batch.map((p: any) => fetchEmailDetail(p.id, active)));
+                }
               }, 0);
+              */
 
               return reconciled;
             });
           } else {
+            if (json.error === 'Approval Required' && json.approvalUrl) {
+              setAuthUrl(json.approvalUrl);
+            }
             setError(json.details || json.error || 'Failed to fetch emails');
             setEmails(prev => prev.length > 0 ? prev : INITIAL_EMAILS);
             setLoading(false);
@@ -343,37 +352,25 @@ export default function InboxView() {
         setSyncPageCount(prev => prev + 1);
 
         setEmails(prev => {
-          const placeholders = json.messages.map((m: any) => {
-            const existing = prev.find(e => e.id === m.id);
-            if (existing && !existing.loading) {
-              return existing;
-            }
+          const newItems = json.messages.map((m: any) => {
             return {
               id: m.id,
-              loading: true,
-              from: '',
-              senderEmail: '',
-              initials: '',
-              subject: '',
-              priority: '',
-              time: '',
-              snippet: '',
-              fullBody: '',
-              hasAttachment: false,
-              attachmentName: '',
-              requiresReply: false
+              loading: m.loading !== undefined ? m.loading : true,
+              from: m.from || '',
+              senderEmail: m.senderEmail || '',
+              initials: m.initials || '',
+              subject: m.subject || '',
+              priority: m.priority || '',
+              time: m.time || '',
+              snippet: m.snippet || '',
+              fullBody: m.fullBody || '',
+              hasAttachment: m.hasAttachment || false,
+              attachmentName: m.attachmentName || '',
+              requiresReply: m.requiresReply || false
             };
           });
 
-          setTimeout(() => {
-            placeholders.forEach((p: any) => {
-              if (p.loading) {
-                fetchEmailDetail(p.id, true);
-              }
-            });
-          }, 0);
-
-          return [...prev, ...placeholders];
+          return [...prev, ...newItems];
         });
       } else {
         setError(json.details || json.error || 'Failed to load more emails');
@@ -636,6 +633,51 @@ export default function InboxView() {
         </div>
       )}
 
+      {authUrl && (
+        <div style={{ 
+          padding: '14px 18px', 
+          background: 'rgba(245, 158, 11, 0.08)', 
+          border: '1px solid rgba(245, 158, 11, 0.25)', 
+          borderRadius: '10px', 
+          color: '#f59e0b', 
+          fontSize: '0.9rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: '0 4px 20px rgba(245, 158, 11, 0.05)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+            <span>
+              <b>Google Account Sync Required:</b> GlideFlow needs access to your Gmail to fetch your messages.
+            </span>
+          </div>
+          <a 
+            href={authUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ 
+              background: '#f59e0b', 
+              color: '#000', 
+              padding: '6px 14px', 
+              borderRadius: '6px', 
+              fontWeight: 700, 
+              textDecoration: 'none',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'opacity 0.2s'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
+            onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+          >
+            Connect Gmail <ExternalLink size={12} />
+          </a>
+        </div>
+      )}
+
       {notification && (
         <div style={{ 
           padding: '10px 14px', 
@@ -724,9 +766,13 @@ export default function InboxView() {
                 key={e.id} 
                 className={`${styles.listItem} ${index === focusedIndex ? styles.focusedListItem : ''}`} 
                 style={{ alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}
-                onClick={() => {
+                onClick={async () => {
                   setFocusedIndex(index);
                   setSelectedEmail(e);
+                  // ✅ Fetch detail strictly on click as requested
+                  if (e.loading || e.from === 'Failed to Load') {
+                    await fetchEmailDetail(e.id, true);
+                  }
                 }}
               >
                 {/* Initials Avatar */}
@@ -1244,7 +1290,7 @@ export default function InboxView() {
                         if (json.success) {
                           setEmails((prev: any[]) => {
                             const next = prev.filter((e: any) => e.id !== deletingEmailState.emailId);
-                            localStorage.setItem('hyperflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
+                            localStorage.setItem('glideflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
                             return next;
                           });
                           setSelectedEmail(null);
@@ -1310,7 +1356,7 @@ export default function InboxView() {
               </div>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff', margin: 0 }}>Free Trial Limit Reached</h2>
               <p style={{ fontSize: '0.9rem', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-                You have used your 5 free AI requests. Upgrade to <b>HyperFlow Pro</b> to unlock unlimited AI scheduling, drafting, and summaries.
+                You have used your 5 free AI requests. Upgrade to <b>GlideFlow Pro</b> to unlock unlimited AI scheduling, drafting, and summaries.
               </p>
             </div>
 

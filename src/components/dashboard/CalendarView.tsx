@@ -183,7 +183,7 @@ const getInitialMockEventsList = () => {
         { 
           id: 101, type: 'Meeting', title: 'Client Pitch Deck Draft Review', time: '2:00 PM - 2:30 PM', duration: '30m', 
           platform: 'Google Meet', doc: 'Pitch Deck PDF', attendees: 'Aarav, Clients', status: 'Completed',
-          agenda: "Early preview of HyperFlow proposal deck slides.", meetingLink: "https://meet.google.com/abc-xyz-def",
+          agenda: "Early preview of GlideFlow proposal deck slides.", meetingLink: "https://meet.google.com/abc-xyz-def",
           dayNum: 11
         }
       ],
@@ -300,7 +300,7 @@ export default function CalendarView() {
   const [events, setEvents] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const cached = localStorage.getItem('hyperflow_calendar_cache');
+        const cached = localStorage.getItem('glideflow_calendar_cache');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -322,6 +322,7 @@ export default function CalendarView() {
   const [syncStatus, setSyncStatus] = useState<string>('Initializing...');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncedMonths, setSyncedMonths] = useState<Set<string>>(new Set());
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
 
   // Form scheduling state
   const [eventType, setEventType] = useState('Meeting');
@@ -422,7 +423,7 @@ export default function CalendarView() {
   // Write changes to localStorage cache
   useEffect(() => {
     if (events.length > 0) {
-      localStorage.setItem('hyperflow_calendar_cache', JSON.stringify(events));
+      localStorage.setItem('glideflow_calendar_cache', JSON.stringify(events));
     }
   }, [events]);
 
@@ -448,8 +449,13 @@ export default function CalendarView() {
           next.add(monthName);
           return next;
         });
+        setAuthUrl(null);
+      } else {
+        if (json.error === 'Approval Required' && json.approvalUrl) {
+          setAuthUrl(json.approvalUrl);
+        }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(`Error loading events for ${monthName}:`, e);
     }
   };
@@ -473,6 +479,11 @@ export default function CalendarView() {
           });
           return [...otherMonths, ...parsedEvents];
         });
+        setAuthUrl(null);
+      } else {
+        if (json.error === 'Approval Required' && json.approvalUrl) {
+          setAuthUrl(json.approvalUrl);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -835,6 +846,51 @@ export default function CalendarView() {
         </div>
 
       </div>
+
+      {authUrl && (
+        <div style={{ 
+          padding: '14px 18px', 
+          background: 'rgba(245, 158, 11, 0.08)', 
+          border: '1px solid rgba(245, 158, 11, 0.25)', 
+          borderRadius: '10px', 
+          color: '#f59e0b', 
+          fontSize: '0.9rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: '0 4px 20px rgba(245, 158, 11, 0.05)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+            <span>
+              <b>Google Account Sync Required:</b> GlideFlow needs access to your Google Calendar to fetch your events.
+            </span>
+          </div>
+          <a 
+            href={authUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ 
+              background: '#f59e0b', 
+              color: '#000', 
+              padding: '6px 14px', 
+              borderRadius: '6px', 
+              fontWeight: 700, 
+              textDecoration: 'none',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'opacity 0.2s'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
+            onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+          >
+            Connect Calendar <ExternalLink size={12} />
+          </a>
+        </div>
+      )}
 
       {/* RENDER ACTIVE CALENDAR LAYOUT */}
       {viewType === 'Week' && (
@@ -1593,7 +1649,7 @@ export default function CalendarView() {
               </div>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff', margin: 0 }}>Free Trial Limit Reached</h2>
               <p style={{ fontSize: '0.9rem', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
-                You have used your 5 free AI requests. Upgrade to <b>HyperFlow Pro</b> to unlock unlimited AI scheduling, drafting, and summaries.
+                You have used your 5 free AI requests. Upgrade to <b>GlideFlow Pro</b> to unlock unlimited AI scheduling, drafting, and summaries.
               </p>
             </div>
 

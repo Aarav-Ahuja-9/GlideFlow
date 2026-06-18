@@ -163,38 +163,6 @@
   gap: 0.25rem;
 }
 
-/* Sandbox Banner */
-.sandboxBanner {
-  background: rgba(168, 85, 247, 0.08);
-  border: 1px dashed rgba(168, 85, 247, 0.3);
-  color: #d8b4fe;
-  padding: 1rem;
-  border-radius: 10px;
-  font-size: 0.825rem;
-  line-height: 1.5;
-  margin-bottom: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.sandboxToggle {
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  color: #ffffff;
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  align-self: flex-start;
-}
-
-.sandboxToggle:hover {
-  background: rgba(168, 85, 247, 0.25);
-}
-
 /* Pay Button */
 .payBtn {
   background: var(--accent-green);

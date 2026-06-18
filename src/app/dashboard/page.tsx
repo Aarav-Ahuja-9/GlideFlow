@@ -31,7 +31,7 @@ export default function Dashboard() {
     <div className={styles.container}>
       <aside className={styles.sidebar}>
         <div>
-          <div className={styles.logo}><BrainCircuit color="#22c55e" size={28} /> HYPER-FLOW</div>
+          <div className={styles.logo}><BrainCircuit color="#22c55e" size={28} /> GLIDEFLOW</div>
           <nav style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
             {navItems.map((item) => (
               <div key={item.name} className={`${styles.navItem} ${activeTab === item.name ? styles.active : ''}`} onClick={() => setActiveTab(item.name)}>

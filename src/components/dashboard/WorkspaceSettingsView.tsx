@@ -188,7 +188,7 @@ export default function WorkspaceSettingsView() {
                 Theme Highlight Accent
               </div>
               <p style={{ fontSize: '0.85rem', color: '#a1a1aa', marginBottom: '1rem' }}>
-                Customize the default indicator accent theme color of the HyperFlow application workflow dashboard.
+                Customize the default indicator accent theme color of the GlideFlow application workflow dashboard.
               </p>
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                 {[
@@ -255,7 +255,7 @@ export default function WorkspaceSettingsView() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>Sync Refresh Cycle</div>
-                    <div style={{ fontSize: '0.75rem', color: '#717171', marginTop: '2px' }}>How frequently HyperFlow updates inbox databases.</div>
+                    <div style={{ fontSize: '0.75rem', color: '#717171', marginTop: '2px' }}>How frequently GlideFlow updates inbox databases.</div>
                   </div>
                   <select 
                     value={refreshRate}

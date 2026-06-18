@@ -1,123 +1,96 @@
 import { NextResponse } from 'next/server';
-import https from 'https';
+import { auth } from '@clerk/nextjs/server';
 import { URL } from 'url';
 
-function callMcp(mcpUrl: string, apiKey: string, method: string, params: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-        const parsedUrl = new URL(mcpUrl);
-        const headers = {
+export const dynamic = 'force-dynamic';
+
+async function callMcp(mcpUrl: string, apiKey: string, method: string, params: any): Promise<any> {
+    const initResponse = await fetch(mcpUrl, {
+        method: 'POST',
+        headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json, text/event-stream'
-        };
-
-        // 1. Establish session with initialize POST
-        const initData = JSON.stringify({
+        },
+        body: JSON.stringify({
             jsonrpc: "2.0",
             id: 1,
             method: "initialize",
             params: {
                 protocolVersion: "2024-11-05",
                 capabilities: {},
-                clientInfo: { name: "hyperflow-backend", version: "1.0.0" }
+                clientInfo: { name: "glideflow-backend", version: "1.0.0" }
             }
-        });
-
-        const initReq = https.request({
-            hostname: parsedUrl.hostname,
-            port: parsedUrl.port || 443,
-            path: parsedUrl.pathname + parsedUrl.search,
-            method: 'POST',
-            headers
-        }, (initRes) => {
-            const sessionId = initRes.headers['mcp-session-id'];
-            if (!sessionId) {
-                initReq.destroy();
-                return reject(new Error("Failed to retrieve mcp-session-id from response headers"));
-            }
-
-            // Keep init stream alive
-            initRes.on('data', () => {});
-            initRes.on('end', () => {});
-
-            // 2. Immediately send the actual method POST
-            const requestData = JSON.stringify({
-                jsonrpc: "2.0",
-                id: 2,
-                method,
-                params
-            });
-
-            const methodReq = https.request({
-                hostname: parsedUrl.hostname,
-                port: parsedUrl.port || 443,
-                path: parsedUrl.pathname + parsedUrl.search,
-                method: 'POST',
-                headers: {
-                    ...headers,
-                    'mcp-session-id': sessionId as string
-                }
-            }, (methodRes) => {
-                let responseBody = '';
-                methodRes.on('data', (chunk) => {
-                    responseBody += chunk.toString();
-                });
-
-                methodRes.on('end', () => {
-                    initReq.destroy();
-
-                    if (methodRes.statusCode !== 200) {
-                        return reject(new Error(`MCP method ${method} failed with status ${methodRes.statusCode}: ${responseBody}`));
-                    }
-
-                    try {
-                        // Parse SSE response
-                        const lines = responseBody.split('\n');
-                        const dataLine = lines.find(line => line.trim().startsWith('data:'));
-                        if (dataLine) {
-                            const jsonStr = dataLine.slice(dataLine.indexOf('data:') + 5).trim();
-                            const rpcResponse = JSON.parse(jsonStr);
-                            if (rpcResponse.error) {
-                                return reject(new Error(rpcResponse.error.message || JSON.stringify(rpcResponse.error)));
-                            }
-                            resolve(rpcResponse.result);
-                        } else {
-                            const rpcResponse = JSON.parse(responseBody);
-                            if (rpcResponse.error) {
-                                return reject(new Error(rpcResponse.error.message || JSON.stringify(rpcResponse.error)));
-                            }
-                            resolve(rpcResponse.result);
-                        }
-                    } catch (e: any) {
-                        reject(new Error(`Failed to parse MCP response: ${e.message}. Raw: ${responseBody}`));
-                    }
-                });
-            });
-
-            methodReq.on('error', (err) => {
-                initReq.destroy();
-                reject(err);
-            });
-
-            methodReq.write(requestData);
-            methodReq.end();
-        });
-
-        initReq.on('error', reject);
-        initReq.write(initData);
-        initReq.end();
+        }),
+        cache: 'no-store',
+        keepalive: true
     });
+
+    const sessionId = initResponse.headers.get('mcp-session-id');
+    if (!sessionId) {
+        throw new Error("Failed to retrieve mcp-session-id from response headers");
+    }
+
+    const reader = initResponse.body?.getReader();
+    let streamActive = true;
+    if (reader) {
+        (async () => {
+            try {
+                while (streamActive) {
+                    const { done } = await reader.read();
+                    if (done) break;
+                }
+            } catch (e) {}
+        })();
+    }
+
+    try {
+        const methodResponse = await fetch(mcpUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/event-stream',
+                'mcp-session-id': sessionId
+            },
+            body: JSON.stringify({ jsonrpc: "2.0", id: 2, method, params }),
+            cache: 'no-store'
+        });
+
+        const responseText = await methodResponse.text();
+        if (!methodResponse.ok) throw new Error("MCP Fail");
+
+        try {
+            const lines = responseText.split('\n');
+            const dataLine = lines.find(line => line.trim().startsWith('data:'));
+            let rpcResponse;
+            if (dataLine) {
+                rpcResponse = JSON.parse(dataLine.slice(dataLine.indexOf('data:') + 5).trim());
+            } else {
+                rpcResponse = JSON.parse(responseText);
+            }
+            if (rpcResponse.error) throw new Error("RPC error");
+            return rpcResponse.result;
+        } catch (e: any) {
+            throw new Error("Parse Fail");
+        }
+    } finally {
+        streamActive = false;
+        if (reader) reader.cancel().catch(() => {});
+    }
 }
 
-async function callMcpWithRetry(mcpUrl: string, apiKey: string, method: string, params: any, retries = 4): Promise<any> {
+async function callMcpWithRetry(mcpUrl: string, apiKey: string, method: string, params: any, retries = 5): Promise<any> {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             return await callMcp(mcpUrl, apiKey, method, params);
         } catch (e: any) {
             const isSessionError = e.message && (e.message.includes('Session not found') || e.message.includes('mcp-session-id'));
             if (isSessionError && attempt < retries) {
-                console.warn(`[MCP] Session error on attempt ${attempt}/${retries}. Retrying in 200ms...`);
-                await new Promise(r => setTimeout(r, 200));
+                // Fixed: Added Jitter (Random delay between 300ms and 700ms) to break collision loop
+                const backoffDelay = Math.floor(Math.random() * 400) + 300;
+                console.warn(`[MCP] Calendar Session collision. Retrying randomly in ${backoffDelay}ms...`);
+                await new Promise(r => setTimeout(r, backoffDelay));
                 continue;
             }
             throw e;
@@ -126,32 +99,30 @@ async function callMcpWithRetry(mcpUrl: string, apiKey: string, method: string, 
 }
 
 export async function GET(request: Request) {
+    // 🔥 ANTI-COLLISION STAGGER: Wait 800ms before starting to let Mail route initialize cleanly first
+    await new Promise(r => setTimeout(r, 800));
+
     try {
         const apiKey = process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY;
-        if (!apiKey) {
-            return NextResponse.json(
-                { success: false, error: 'Corsair API Key is not set in environment variables.' },
-                { status: 500 }
-            );
-        }
-
         const { searchParams } = new URL(request.url);
         const yearParam = searchParams.get('year');
-        const monthParam = searchParams.get('month'); // 1-indexed (e.g. 6 for June)
+        const monthParam = searchParams.get('month');
 
         const now = new Date();
         const year = yearParam ? parseInt(yearParam, 10) : now.getFullYear();
         const month = monthParam ? parseInt(monthParam, 10) : now.getMonth() + 1;
 
-        // Calculate timeMin and timeMax in ISO format
         const timeMin = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0)).toISOString();
-        // Set to last day of target month (date index 0 of next month is the last day of target month)
         const timeMax = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)).toISOString();
 
-        const mcpUrl = 'https://api.corsair.dev/mcp/93fa7425b1a34ddc82d3d5128c1bf167?tenantId=aarav_dev';
-
-        console.log(`Fetching calendar events from ${timeMin} to ${timeMax} ...`);
+        const { userId } = await auth();
+        if (!userId) return NextResponse.json({ success: false }, { status: 401 });
         
+        const tenantId = encodeURIComponent(userId);
+        const integrationId = process.env.CORSAIR_INTEGRATION_ID || "93fa7425b1a34ddc82d3d5128c1bf167";
+        const mcpUrl = `https://api.corsair.dev/mcp/${integrationId}?tenantId=${tenantId}`;
+
+        console.log(`Fetching calendar events dynamically...`);
         const result = await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {
             name: "run_script",
             arguments: {
@@ -161,178 +132,66 @@ export async function GET(request: Request) {
                     timeMin: "${timeMin}",
                     timeMax: "${timeMax}",
                     singleEvents: true,
-                    maxResults: 150
+                    maxResults: 50
                 });
                 return calendarEvents;
                 `
             }
         });
 
-        if (result.isError) {
-            const errorText = result.content?.[0]?.text || "Unknown MCP GET Error";
-            throw new Error(errorText);
-        }
-
         const textResult = result.content?.[0]?.text;
         let items = [];
         if (textResult) {
-            try {
-                const parsedResult = JSON.parse(textResult);
-                items = parsedResult.items || [];
-            } catch (e) {
-                console.error("Failed to parse calendar getMany JSON:", e);
-            }
+            try { items = JSON.parse(textResult).items || []; } catch {}
         }
-
-        return NextResponse.json({
-            success: true,
-            year,
-            month,
-            items
-        });
-
+        return NextResponse.json({ success: true, year, month, items });
     } catch (error: any) {
-        console.error("Calendar Sync GET Error:", error);
-        return NextResponse.json({
-            success: false,
-            error: "Fetch Fail",
-            details: error.message
-        }, { status: 500 });
+        return NextResponse.json({ success: false, details: error.message }, { status: 500 });
     }
 }
 
 export async function POST(request: Request) {
     try {
         const apiKey = process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY;
-        if (!apiKey) {
-            return NextResponse.json(
-                { success: false, error: 'Corsair API Key is not set.' },
-                { status: 500 }
-            );
-        }
-
         const body = await request.json();
         const { event } = body;
-
-        if (!event || !event.summary || !event.start || !event.end) {
-            return NextResponse.json(
-                { success: false, error: 'Missing required event fields (summary, start, end).' },
-                { status: 400 }
-            );
-        }
-
-        const mcpUrl = 'https://api.corsair.dev/mcp/93fa7425b1a34ddc82d3d5128c1bf167?tenantId=aarav_dev';
-
-        console.log(`Creating calendar event: ${event.summary} ...`);
+        const { userId } = await auth();
+        if (!event || !userId) return NextResponse.json({ success: false }, { status: 400 });
+        
+        const tenantId = encodeURIComponent(userId);
+        const integrationId = process.env.CORSAIR_INTEGRATION_ID || "93fa7425b1a34ddc82d3d5128c1bf167";
+        const mcpUrl = `https://api.corsair.dev/mcp/${integrationId}?tenantId=${tenantId}`;
 
         const result = await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {
             name: "run_script",
-            arguments: {
-                code: `
-                const newEvent = await corsair.googlecalendar.api.events.create({
-                    calendarId: "primary",
-                    event: ${JSON.stringify(event)}
-                });
-                return newEvent;
-                `
-            }
+            arguments: { code: `return await corsair.googlecalendar.api.events.create({ calendarId: "primary", event: ${JSON.stringify(event)} });` }
         });
-
-        if (result.isError) {
-            const errorText = result.content?.[0]?.text || "Unknown MCP POST Error";
-            throw new Error(errorText);
-        }
 
         const textResult = result.content?.[0]?.text;
-        let createdEvent = null;
-        if (textResult) {
-            try {
-                createdEvent = JSON.parse(textResult);
-            } catch (e) {
-                console.error("Failed to parse calendar create JSON:", e);
-            }
-        }
-
-        return NextResponse.json({
-            success: true,
-            event: createdEvent
-        });
-
+        return NextResponse.json({ success: true, event: textResult ? JSON.parse(textResult) : null });
     } catch (error: any) {
-        console.error("Calendar Sync POST Error:", error);
-        return NextResponse.json({
-            success: false,
-            error: "Create Fail",
-            details: error.message
-        }, { status: 500 });
+        return NextResponse.json({ success: false, details: error.message }, { status: 500 });
     }
 }
 
 export async function DELETE(request: Request) {
     try {
         const apiKey = process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY;
-        if (!apiKey) {
-            return NextResponse.json(
-                { success: false, error: 'Corsair API Key is not set.' },
-                { status: 500 }
-            );
-        }
-
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
-
-        if (!id) {
-            return NextResponse.json(
-                { success: false, error: 'Missing required event id parameter.' },
-                { status: 400 }
-            );
-        }
-
-        const mcpUrl = 'https://api.corsair.dev/mcp/93fa7425b1a34ddc82d3d5128c1bf167?tenantId=aarav_dev';
-
-        console.log(`Deleting calendar event: ${id} ...`);
-
-        const cleanId = id.replace(/[^a-zA-Z0-9_-]/g, '');
-
-        const result = await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {
-            name: "run_script",
-            arguments: {
-                code: `
-                await corsair.googlecalendar.api.events.delete({
-                    calendarId: "primary",
-                    id: "${cleanId}"
-                });
-                return { success: true };
-                `
-            }
-        });
-
-        if (result.isError) {
-            const errorText = result.content?.[0]?.text || "Unknown MCP DELETE Error";
-            throw new Error(errorText);
-        }
-
-        return NextResponse.json({
-            success: true
-        });
-
-    } catch (error: any) {
-        console.error("Calendar Sync DELETE Error:", error);
+        const { userId } = await auth();
+        if (!id || !userId) return NextResponse.json({ success: false }, { status: 400 });
         
-        const isApprovalError = error.message && error.message.includes('Approval required');
-        let approvalUrl = null;
-        if (isApprovalError) {
-            const match = error.message.match(/https:\/\/app\.corsair\.dev\/approve\/[^\s]+/);
-            if (match) {
-                approvalUrl = match[0];
-            }
-        }
+        const tenantId = encodeURIComponent(userId);
+        const integrationId = process.env.CORSAIR_INTEGRATION_ID || "93fa7425b1a34ddc82d3d5128c1bf167";
+        const mcpUrl = `https://api.corsair.dev/mcp/${integrationId}?tenantId=${tenantId}`;
 
-        return NextResponse.json({
-            success: false,
-            error: isApprovalError ? "Approval Required" : "Delete Fail",
-            approvalUrl,
-            details: error.message
-        }, { status: isApprovalError ? 403 : 500 });
+        await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {
+            name: "run_script",
+            arguments: { code: `await corsair.googlecalendar.api.events.delete({ calendarId: "primary", eventId: "${id.replace(/[^a-zA-Z0-9_-]/g, '')}" }); return { success: true };` }
+        });
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, details: error.message }, { status: 500 });
     }
 }

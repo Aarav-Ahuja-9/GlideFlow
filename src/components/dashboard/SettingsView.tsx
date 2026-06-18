@@ -15,6 +15,7 @@ export default function SettingsView() {
   const [selectedPlan, setSelectedPlan] = useState('Free');
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
 
   
   // Custom states for notifications toggles
@@ -37,7 +38,8 @@ export default function SettingsView() {
   // Prefill the active subscription plan from Clerk metadata
   useEffect(() => {
     if (isLoaded && user?.publicMetadata?.plan) {
-      const activePlan = (user.publicMetadata.plan as string).includes('Pro') ? 'Pro' : 'Free';
+      const metadataPlan = user.publicMetadata.plan as string;
+      const activePlan = metadataPlan.includes('Plus') ? 'Plus' : metadataPlan.includes('Pro') ? 'Pro' : 'Free';
       setSelectedPlan(activePlan);
     }
   }, [isLoaded, user]);
@@ -58,23 +60,43 @@ export default function SettingsView() {
   const handleUpgrade = async (planId: string) => {
     if (planId === selectedPlan) return;
     
-    if (planId === 'Pro') {
+    if (planId === 'Pro' || planId === 'Plus') {
       // Route the user to our newly created Razorpay Checkout page
-      router.push('/checkout?plan=Pro');
+      router.push(`/checkout?plan=${planId}`);
       return;
     }
 
-    // Downgrading simulation
+    // Trigger confirmation modal for downgrades
+    setShowDowngradeModal(true);
+  };
+
+  const executeDowngrade = async () => {
+    setShowDowngradeModal(false);
     setIsUpgrading(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setSelectedPlan('Free');
-    setIsUpgrading(false);
-    showToast(`Plan successfully set to Free Plan.`);
+    try {
+      const res = await fetch('/api/billing/update-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: 'free' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedPlan('Free');
+        showToast(`Plan successfully set to Free Plan.`);
+      } else {
+        showToast(`Failed to downgrade plan: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      showToast('Network error while downgrading plan.');
+      console.error('Downgrade error:', err);
+    } finally {
+      setIsUpgrading(false);
+    }
   };
 
 
   const copyReferral = () => {
-    navigator.clipboard.writeText('https://hyperflow.com/invite?ref=aaravdev');
+    navigator.clipboard.writeText('https://glideflow.com/invite?ref=aaravdev');
     setCopied(true);
     showToast('Referral link copied to clipboard!');
     setTimeout(() => setCopied(false), 2000);
@@ -98,7 +120,7 @@ export default function SettingsView() {
     }));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", "hyperflow_backup.json");
+    downloadAnchor.setAttribute("download", "glideflow_backup.json");
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -111,7 +133,7 @@ export default function SettingsView() {
       name: 'Free Plan',
       price: '$0',
       period: 'forever',
-      desc: 'Perfect for getting started with hyper-flow.',
+      desc: 'Perfect for getting started with glide-flow.',
       features: ['1 connected email inbox', 'Today\'s agenda calendar views', 'Keyboard shortcut guides'],
     },
     {
@@ -123,13 +145,21 @@ export default function SettingsView() {
       features: ['Unlimited connected emails', 'AI-generated email summaries', 'Priority fast sync support'],
       badge: 'Recommended',
     },
+    {
+      id: 'Plus',
+      name: 'Plus Plan',
+      price: '$29',
+      period: 'per month',
+      desc: 'For teams and high-velocity organizations.',
+      features: ['Everything in Pro', 'Team calendar sharing & collaboration', 'Custom automation rules', 'Unlimited AI smart credits'],
+    },
   ];
 
   // Calculate dynamic stats based on plan selection
   const daysRemaining = selectedPlan === 'Free' ? 'Unlimited' : '28 days';
   const renewalText = selectedPlan === 'Free' ? 'Free tier active forever' : 'Renews on July 12, 2026';
-  const aiUsed = selectedPlan === 'Free' ? 18 : 45;
-  const aiMax = selectedPlan === 'Free' ? 20 : 1000;
+  const aiUsed = selectedPlan === 'Free' ? 18 : selectedPlan === 'Pro' ? 45 : 120;
+  const aiMax = selectedPlan === 'Free' ? 20 : selectedPlan === 'Pro' ? 1000 : 10000;
   const aiPercentage = Math.round((aiUsed / aiMax) * 100);
 
   return (
@@ -597,7 +627,7 @@ export default function SettingsView() {
                 </button>
               </div>
               <p style={{ fontSize: '0.75rem', color: '#717171', marginTop: '2px' }}>
-                This coupon gives your friend **50% off** their first month of HyperFlow Pro.
+                This coupon gives your friend **50% off** their first month of GlideFlow Pro.
               </p>
             </div>
           </div>
@@ -615,7 +645,7 @@ export default function SettingsView() {
               </div>
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '8px' }}>
                 <strong style={{ color: '#fff', display: 'block', marginBottom: '2px' }}>Need help?</strong>
-                Feel free to email support at <a href="mailto:support@hyperflow.com" style={{ color: '#22c55e', textDecoration: 'none' }}>support@hyperflow.com</a> for fast help with subscription plans.
+                Feel free to email support at <a href="mailto:support@glideflow.com" style={{ color: '#22c55e', textDecoration: 'none' }}>support@glideflow.com</a> for fast help with subscription plans.
               </div>
             </div>
           </div>
@@ -623,6 +653,48 @@ export default function SettingsView() {
         </div>
 
       </div>
+
+      {/* Downgrade Confirmation Modal */}
+      {showDowngradeModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }} onClick={() => setShowDowngradeModal(false)}>
+          
+          <div style={{
+            background: '#0c0c0e', border: '1px solid rgba(239, 68, 68, 0.2)',
+            borderRadius: '16px', width: '90%', maxWidth: '400px', padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.15)', position: 'relative',
+            display: 'flex', flexDirection: 'column', gap: '16px'
+          }} onClick={(e) => e.stopPropagation()}>
+            
+            <h3 style={{ fontSize: '1.15rem', color: '#fff', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#ef4444' }}>⚠️</span> Confirm Downgrade
+            </h3>
+
+            <p style={{ fontSize: '0.85rem', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              Are you sure you want to downgrade your subscription to the <b>Free Plan</b>? 
+              You will lose access to unlimited email inboxes, automated AI briefings, and advanced workspace automation rules.
+            </p>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button 
+                onClick={() => setShowDowngradeModal(false)}
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '8px 16px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executeDowngrade}
+                style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Downgrade
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

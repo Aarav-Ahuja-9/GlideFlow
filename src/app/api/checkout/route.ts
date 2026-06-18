@@ -1,67 +1,58 @@
 import { NextResponse } from 'next/server';
+import Razorpay from 'razorpay';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { plan, couponApplied } = body;
+    const { plan, couponCode } = body;
 
-    // Standard pricing configuration
-    // Pro Plan: $15.00 / month approx ₹1,299. Using INR for native Razorpay compatibility.
-    let baseAmount = 1299; // in rupees
-    if (couponApplied) {
-      baseAmount = Math.round(baseAmount * 0.5); // 50% discount
+    let baseAmount = plan === 'Plus' ? 2499 : 1299;
+    const code = (couponCode || '').trim().toUpperCase();
+    const fiftyPercentPrefixes = ['FLOW', 'CODE', 'SYNC', 'ZERO', 'HYPER', 'WAVE'];
+    const couponApplied = code === 'DEMO99' || code === 'FLOW99' || code === 'DEMO50' || fiftyPercentPrefixes.some(prefix => code.startsWith(prefix));
+
+    if (code === 'DEMO99' || code === 'FLOW99') {
+      baseAmount = Math.max(1, Math.round(baseAmount * 0.01));
+    } else if (code === 'DEMO50' || fiftyPercentPrefixes.some(prefix => code.startsWith(prefix))) {
+      baseAmount = Math.round(baseAmount * 0.5);
     }
 
-    const amountInPaise = baseAmount * 100; // Razorpay expects amount in smallest subunit (paise)
+    const amountInPaise = baseAmount * 100;
     const currency = 'INR';
 
-    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    if (amountInPaise < 100) {
+      return NextResponse.json(
+        { success: false, error: 'Amount must be at least ₹1.00 (100 paise).' },
+        { status: 400 }
+      );
+    }
+
+    const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-    // Check if keys are real Razorpay credentials (not any placeholder/demo values)
-    const PLACEHOLDER_PATTERNS = ['dummy', 'YOUR_', 'Demo', 'demo', 'placeholder', 'test_Hyper', 'HFdemo'];
-    const areKeysValid = keyId && keySecret
-      && !PLACEHOLDER_PATTERNS.some(p => keyId.includes(p))
-      && !PLACEHOLDER_PATTERNS.some(p => keySecret.includes(p));
-
-    if (!areKeysValid) {
-      // Return a simulated mock order for seamless local sandbox testing
-      console.log('Using simulated mockup Razorpay Order due to dummy credentials in environment.');
-      return NextResponse.json({
-        success: true,
-        orderId: `order_mock_${Math.random().toString(36).substring(2, 11)}`,
-        amount: amountInPaise,
-        currency,
-        keyId: keyId || 'rzp_test_HyperFlowDemo2026',
-        isMocked: true,
-      });
+    if (!keyId || !keySecret) {
+      console.error('Razorpay credentials are missing in environment variables.');
+      return NextResponse.json(
+        { success: false, error: 'Razorpay credentials are not configured.' },
+        { status: 500 }
+      );
     }
 
-    // Call real Razorpay API
-    const authString = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-    const response = await fetch('https://api.razorpay.com/v1/orders', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${authString}`,
-      },
-      body: JSON.stringify({
-        amount: amountInPaise,
-        currency,
-        receipt: `receipt_${Date.now()}`,
-        notes: {
-          plan,
-          couponApplied: couponApplied ? 'yes' : 'no',
-        },
-      }),
+    const razorpay = new Razorpay({
+      key_id: keyId,
+      key_secret: keySecret,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Razorpay API error: ${errorText}`);
-    }
-
-    const order = await response.json();
+    const order = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency,
+      receipt: `receipt_${Date.now()}`,
+      notes: {
+        plan: plan || 'Pro',
+        couponApplied: couponApplied ? 'yes' : 'no',
+        couponCode: code || 'NONE',
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -69,14 +60,14 @@ export async function POST(request: Request) {
       amount: order.amount,
       currency: order.currency,
       keyId,
-      isMocked: false,
     });
-
   } catch (error: any) {
     console.error('Create Order Error:', error);
+    const status = error?.statusCode === 401 ? 401 : 500;
+    const message = error?.error?.description || error.message || 'Order creation failed.';
     return NextResponse.json(
-      { success: false, error: 'Order Creation Fail', details: error.message },
-      { status: 500 }
+      { success: false, error: message },
+      { status }
     );
   }
 }

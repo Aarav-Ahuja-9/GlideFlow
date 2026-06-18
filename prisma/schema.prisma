@@ -6,7 +6,6 @@ generator client {
 
 datasource db {
   provider  = "postgresql" 
-  // ❌ url aur directUrl yahan se hata diye gaye hain
 }
 
 // ------------------------------------------------------
@@ -17,6 +16,7 @@ model User {
   email          String    @unique
   name           String?
   password       String?   
+  plan           Plan      @default(free)
   
   emailsSent     Email[]   @relation("SentEmails")
   emailsReceived Email[]   @relation("ReceivedEmails")
@@ -25,6 +25,12 @@ model User {
   
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+enum Plan {
+  free
+  pro
+  plus
 }
 
 // ------------------------------------------------------

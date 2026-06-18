@@ -197,6 +197,13 @@
   letter-spacing: -0.5px;
 }
 
+.statSubtitle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: 6px;
+  color: #a1a1aa;
+}
+
 /* =========================================
    List Views & Scrollcontainers
    ========================================= */

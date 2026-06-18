@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "HyperFlow | Command Center",
+  title: "GlideFlow | Command Center",
   description: "Keyboard-first email client and scheduling workspace",
 };
 
