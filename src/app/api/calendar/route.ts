@@ -104,6 +104,7 @@ export async function GET(request: Request) {
 
     try {
         const apiKey = process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY;
+        if (!apiKey) return NextResponse.json({ success: false, error: 'API Key missing' }, { status: 500 });
         const { searchParams } = new URL(request.url);
         const yearParam = searchParams.get('year');
         const monthParam = searchParams.get('month');
@@ -153,6 +154,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const apiKey = process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY;
+        if (!apiKey) return NextResponse.json({ success: false, error: 'API Key missing' }, { status: 500 });
         const body = await request.json();
         const { event } = body;
         const { userId } = await auth();
@@ -177,6 +179,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
     try {
         const apiKey = process.env.CORSAIR_API_KEY || process.env.CORSAIR_DEV_KEY;
+        if (!apiKey) return NextResponse.json({ success: false, error: 'API Key missing' }, { status: 500 });
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
         const { userId } = await auth();
