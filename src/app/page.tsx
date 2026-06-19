@@ -47,27 +47,6 @@ export default function LandingPage() {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  // Intersection Observer for scroll animations
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add(styles.animateVisible);
-          }
-        });
-      },
-      { threshold: 0.08 } // Trigger when 8% of the section is visible
-    );
-
-    const sections = document.querySelectorAll(`.${styles.animateOnScroll}`);
-    sections.forEach((sec) => observer.observe(sec));
-
-    return () => {
-      sections.forEach((sec) => observer.unobserve(sec));
-    };
-  }, []);
-
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
   };
@@ -235,7 +214,7 @@ export default function LandingPage() {
       </div>
 
       {/* Hero Section */}
-      <main className={`${styles.hero} ${styles.animateOnScroll}`}>
+      <main className={`${styles.hero}`}>
         <div className={styles.pill}>GlideFlow v2.0 • Cybernetic Email Sync</div>
         <h1 className={styles.headline}>The fastest email client.<br />Optimized for developers.</h1>
         <p className={styles.subHeadline}>Pre-fetch sync operations, schedule meetings, and automate sorting filters with absolute ease. Use terminal-grade hotkeys or clean mouse clicks.</p>
@@ -255,7 +234,7 @@ export default function LandingPage() {
             <div className={styles.dot} style={{ background: '#ff5f56' }}></div>
             <div className={styles.dot} style={{ background: '#ffbd2e' }}></div>
             <div className={styles.dot} style={{ background: '#27c93f' }}></div>
-            <span style={{ fontSize: '0.65rem', color: '#475569', marginLeft: 'auto', marginRight: 'auto', fontFamily: 'monospace', letterSpacing: '0.5px' }}>// COMMAND_CENTER_SHELL // app.glideflow.com/dashboard</span>
+            <span style={{ fontSize: '0.65rem', color: '#475569', marginLeft: 'auto', marginRight: 'auto', fontFamily: 'monospace', letterSpacing: '0.5px' }}>{`// COMMAND_CENTER_SHELL // app.glideflow.com/dashboard`}</span>
           </div>
           
           <div className={styles.mockApp}>
@@ -340,8 +319,8 @@ export default function LandingPage() {
       </main>
 
       {/* Integrations Banner */}
-      <section className={`${styles.integrations} ${styles.animateOnScroll}`}>
-        <h3 className={styles.integrationsTitle}>// CORE API SYNCS INTEGRATED</h3>
+      <section className={`${styles.integrations}`}>
+        <h3 className={styles.integrationsTitle}>{`// CORE API SYNCS INTEGRATED`}</h3>
         <div className={styles.integrationIcons}>
           <span className={styles.cascadeItem}>Gmail API</span>
           <span className={styles.cascadeItem}>Outlook REST</span>
@@ -352,7 +331,7 @@ export default function LandingPage() {
       </section>
 
       {/* Interactive Keyboard Shortcuts Sandbox */}
-      <section id="playground" className={`${styles.sandboxSection} ${styles.animateOnScroll}`}>
+      <section id="playground" className={`${styles.sandboxSection}`}>
         <div className={styles.pill}>interactive terminal</div>
         <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>Zero-Lag Keyboard Routing</h2>
         <p style={{ fontSize: '1rem', color: '#94a3b8', maxWidth: '600px', margin: '0 auto' }}>
@@ -363,7 +342,7 @@ export default function LandingPage() {
           {/* Key Cards */}
           <div className={styles.sandboxDetails}>
             <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: '#06b6d4', fontWeight: 800, letterSpacing: '1.5px', fontFamily: 'monospace' }}>
-              // DEVICEMAP: KEYBOARD SHORTCUTS
+              {`// DEVICEMAP: KEYBOARD SHORTCUTS`}
             </span>
             <h3 className={styles.sandboxHeading}>Command Bindings</h3>
             <p style={{ fontSize: '0.875rem', color: '#94a3b8', lineHeight: 1.5 }}>
@@ -372,21 +351,21 @@ export default function LandingPage() {
             
             <div className={styles.sandboxKeysRow}>
               <div 
-                className={`${styles.keyCard} ${activeKey === 'c' ? styles.keyCardActive : ''} ${styles.cascadeItem}`}
+                className={`${styles.keyCard} ${activeKey === 'c' ? styles.keyCardActive : ''}`}
                 onClick={() => triggerSandboxKey('c')}
               >
                 <span className={styles.keyChar}>C</span>
                 <span className={styles.keyLabel}>COMPOSE</span>
               </div>
               <div 
-                className={`${styles.keyCard} ${activeKey === 'j' ? styles.keyCardActive : ''} ${styles.cascadeItem}`}
+                className={`${styles.keyCard} ${activeKey === 'j' ? styles.keyCardActive : ''}`}
                 onClick={() => triggerSandboxKey('j')}
               >
                 <span className={styles.keyChar}>J</span>
                 <span className={styles.keyLabel}>NEXT ITEM</span>
               </div>
               <div 
-                className={`${styles.keyCard} ${activeKey === 'k' ? styles.keyCardActive : ''} ${styles.cascadeItem}`}
+                className={`${styles.keyCard} ${activeKey === 'k' ? styles.keyCardActive : ''}`}
                 onClick={() => triggerSandboxKey('k')}
               >
                 <span className={styles.keyChar}>K</span>
@@ -398,7 +377,7 @@ export default function LandingPage() {
           {/* Simulated Terminal Console */}
           <div className={styles.sandboxConsole}>
             <div className={styles.consoleHeader}>
-              <span>// GLIDEFLOW-CACHE-SHELL</span>
+              <span>{`// GLIDEFLOW-CACHE-SHELL`}</span>
               <span style={{ color: '#06b6d4' }}>● RUNTIME STATUS: ONLINE</span>
             </div>
             
@@ -419,7 +398,7 @@ export default function LandingPage() {
       </section>
 
       {/* Subscription Pricing Section */}
-      <section id="pricing" className={`${styles.pricingSection} ${styles.animateOnScroll}`}>
+      <section id="pricing" className={`${styles.pricingSection}`}>
         <div className={styles.pill}>billing center</div>
         <h2 className={styles.sectionTitle} style={{ marginBottom: '1rem' }}>Subscription Registries</h2>
         <p style={{ fontSize: '1rem', color: '#94a3b8', maxWidth: '560px', margin: '0 auto' }}>
@@ -428,7 +407,7 @@ export default function LandingPage() {
 
         <div className={styles.pricingGrid}>
           {/* Free Tier */}
-          <div className={`${styles.pricingCard} ${styles.cascadeItem}`}>
+          <div className={`${styles.pricingCard}`}>
             <div>
               <h3 className={styles.planTitle}>Free Shell</h3>
               <p className={styles.planDesc}>Basic shortcuts and single account synchronization.</p>
@@ -457,7 +436,7 @@ export default function LandingPage() {
           </div>
 
           {/* Pro Tier (Razorpay Integrated) */}
-          <div className={`${styles.pricingCard} ${styles.pricingCardActive} ${styles.cascadeItem}`}>
+          <div className={`${styles.pricingCard} ${styles.pricingCardActive}`}>
             <span className={styles.pricingBadge}>RECOMMENDED PRESAL</span>
             
             <div>
@@ -491,20 +470,20 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className={`${styles.features} ${styles.animateOnScroll}`}>
+      <section id="features" className={`${styles.features}`}>
         <h2 className={styles.sectionTitle}>engineered for performance</h2>
         <div className={styles.featuresGrid}>
-          <div className={`${styles.featureCard} ${styles.cascadeItem}`}>
+          <div className={`${styles.featureCard}`}>
             <div className={styles.featureIconWrapper}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"></path></svg></div>
             <h3 className={styles.featureTitle}>HYBRID INTERFACES</h3>
             <p className={styles.featureDesc}>Click elements, scroll grids, or fly through lists using optimized keyboard navigation shortcuts.</p>
           </div>
-          <div className={`${styles.featureCard} ${styles.cascadeItem}`}>
+          <div className={`${styles.featureCard}`}>
             <div className={styles.featureIconWrapper}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
             <h3 className={styles.featureTitle}>ZERO-LAG CACHING</h3>
             <p className={styles.featureDesc}>Database layers are mirrored to local cache, loading indexes instantly without browser loaders spinning.</p>
           </div>
-          <div className={`${styles.featureCard} ${styles.cascadeItem}`}>
+          <div className={`${styles.featureCard}`}>
             <div className={styles.featureIconWrapper}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
             <h3 className={styles.featureTitle}>DUAL COMMAND BOARDS</h3>
             <p className={styles.featureDesc}>Your mail threads and daily agenda calendars are synchronized on a side-by-side cockpit layout.</p>
@@ -513,20 +492,20 @@ export default function LandingPage() {
       </section>
 
       {/* How it Works Section */}
-      <section className={`${styles.howItWorks} ${styles.animateOnScroll}`}>
+      <section className={`${styles.howItWorks}`}>
         <h2 className={styles.sectionTitle}>three-step deployment</h2>
         <div className={styles.stepsGrid}>
-          <div className={`${styles.stepCard} ${styles.cascadeItem}`}>
+          <div className={`${styles.stepCard}`}>
             <div className={styles.stepNumber}>01</div>
             <h3 className={styles.stepTitle}>link token</h3>
             <p className={styles.stepDesc}>Securely sync Google/Outlook nodes with OAuth permissions to mirror inbox metadata.</p>
           </div>
-          <div className={`${styles.stepCard} ${styles.cascadeItem}`}>
+          <div className={`${styles.stepCard}`}>
             <div className={styles.stepNumber}>02</div>
             <h3 className={styles.stepTitle}>sync cache</h3>
             <p className={styles.stepDesc}>Our pre-fetch routine compiles threads and calendar objects to local index storage.</p>
           </div>
-          <div className={`${styles.stepCard} ${styles.cascadeItem}`}>
+          <div className={`${styles.stepCard}`}>
             <div className={styles.stepNumber}>03</div>
             <h3 className={styles.stepTitle}>execute actions</h3>
             <p className={styles.stepDesc}>Navigate commands, search caches, and process messages without leaving the home screen.</p>
@@ -535,22 +514,22 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonial Section */}
-      <section className={`${styles.testimonial} ${styles.animateOnScroll}`}>
+      <section className={`${styles.testimonial}`}>
         <div className={styles.quote}>
-          "GlideFlow cuts out the clutter. The hotkeys combined with instant local pre-fetching makes searching through 6 months of archive emails take milliseconds. Incredible."
+          &quot;GlideFlow cuts out the clutter. The hotkeys combined with instant local pre-fetching makes searching through 6 months of archive emails take milliseconds. Incredible.&quot;
         </div>
-        <div className={styles.author}>// HACKATHON BETA LOGS: ENG NODE</div>
+        <div className={styles.author}>{`// HACKATHON BETA LOGS: ENG NODE`}</div>
         <div className={styles.authorRole}>System Architect</div>
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className={`${styles.faqSection} ${styles.animateOnScroll}`}>
+      <section id="faq" className={`${styles.faqSection}`}>
         <h2 className={styles.faqHeading}>technical questions</h2>
         <div className={styles.faqGrid}>
           {FAQS.map((faq, index) => {
             const isOpen = openFaq === index;
             return (
-              <div key={index} className={`${styles.faqCard} ${styles.cascadeItem}`}>
+              <div key={index} className={`${styles.faqCard}`}>
                 <div 
                   className={styles.faqQWrapper} 
                   onClick={() => toggleFaq(index)}
