@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import { 
   Mail, Calendar, Clock, FileEdit, Sparkles, Link2, 
   Video, Users, ExternalLink, Paperclip, CornerUpLeft, Loader2, X, RefreshCw, Zap, ShieldCheck
@@ -8,9 +9,41 @@ import styles from '@/app/dashboard/dashboard.module.css';
 
 // Parse google calendar events to internal UI structure
 function parseGoogleEvent(item: any) {
-  const id = item.id;
-  const title = item.summary || 'Untitled Event';
-  const rawDescription = item.description || '';
+  if (!item) {
+    return {
+      id: `temp-fallback-${Date.now()}-${Math.random()}`,
+      type: 'Meeting',
+      title: 'Untitled Event',
+      time: 'All Day',
+      duration: '24h',
+      status: 'Upcoming',
+      agenda: '',
+      platform: 'None',
+      meetingLink: '#',
+      attendees: 'None',
+      doc: '',
+      priority: 'Medium',
+      assignee: 'Unassigned',
+      alertType: 'Notification Badge',
+      category: 'Coding',
+      topic: '',
+      startDateObj: new Date(),
+      endDateObj: new Date()
+    };
+  }
+
+  let parsedItem = item;
+  if (typeof item === 'string') {
+    try {
+      parsedItem = JSON.parse(item);
+    } catch (e) {
+      console.error("Failed to parse stringified event item:", e);
+    }
+  }
+
+  const id = parsedItem.id || parsedItem.iCalUID || `temp-fallback-${Date.now()}-${Math.random()}`;
+  const title = parsedItem.summary || 'Untitled Event';
+  const rawDescription = parsedItem.description || '';
   
   let parsedMetadata: any = {};
   let agenda = rawDescription;
@@ -25,8 +58,8 @@ function parseGoogleEvent(item: any) {
     }
   }
 
-  const startStr = item.start?.dateTime || item.start?.date || '';
-  const endStr = item.end?.dateTime || item.end?.date || '';
+  const startStr = parsedItem.start?.dateTime || parsedItem.start?.date || '';
+  const endStr = parsedItem.end?.dateTime || parsedItem.end?.date || '';
   
   let time = 'All Day';
   let duration = '24h';
@@ -44,7 +77,7 @@ function parseGoogleEvent(item: any) {
         });
       };
       
-      if (item.start?.dateTime) {
+      if (parsedItem.start?.dateTime) {
         time = `${formatTime(startDate)} - ${formatTime(endDate)}`;
         const diffMs = endDate.getTime() - startDate.getTime();
         const diffMins = Math.round(diffMs / 60000);
@@ -59,21 +92,21 @@ function parseGoogleEvent(item: any) {
     } catch (e) {}
   }
 
-  const type = parsedMetadata.type || (item.location || item.hangoutLink || item.attendees ? 'Meeting' : 'Reminder');
-  const platform = parsedMetadata.platform || (item.hangoutLink ? 'Google Meet' : item.location ? 'Location' : 'None');
-  const meetingLink = parsedMetadata.meetingLink || item.hangoutLink || item.location || '#';
+  const type = parsedMetadata.type || (parsedItem.location || parsedItem.hangoutLink || parsedItem.attendees ? 'Meeting' : 'Reminder');
+  const platform = parsedMetadata.platform || (parsedItem.hangoutLink ? 'Google Meet' : parsedItem.location ? 'Location' : 'None');
+  const meetingLink = parsedMetadata.meetingLink || parsedItem.hangoutLink || parsedItem.location || '#';
   
-  const attendeesList = parsedMetadata.attendees || (item.attendees ? item.attendees.map((a: any) => a.displayName || a.email.split('@')[0]).join(', ') : 'None');
+  const attendeesList = parsedMetadata.attendees || (parsedItem.attendees ? parsedItem.attendees.map((a: any) => a.displayName || a.email.split('@')[0]).join(', ') : 'None');
   const doc = parsedMetadata.doc || '';
 
   const now = new Date();
   let status = 'Confirmed';
   if (endStr && new Date(endStr) < now) {
     status = 'Completed';
-  } else if (item.status === 'confirmed') {
+  } else if (parsedItem.status === 'confirmed') {
     status = 'Upcoming';
   } else {
-    status = item.status || 'Upcoming';
+    status = parsedItem.status || 'Upcoming';
   }
 
   return {
@@ -100,6 +133,7 @@ function parseGoogleEvent(item: any) {
 
 export const DashboardView = () => {
   const router = useRouter();
+  const { user, isLoaded } = useUser();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [aiUsage, setAiUsage] = useState<{ count: number; max: number; isPro: boolean } | null>(null);
   const [emails, setEmails] = useState<any[]>([]);
@@ -113,7 +147,34 @@ export const DashboardView = () => {
     meetingsLeft: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [approvalRequired, setApprovalRequired] = useState<boolean>(false);
+  const [isConnecting, setIsConnecting] = useState<boolean>(false);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+
+  const handleConnectGoogle = async () => {
+    setIsConnecting(true);
+    try {
+      const res = await fetch('/api/account/connect', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        if (data.approvalUrl) {
+          window.open(data.approvalUrl, '_blank');
+        }
+        if (user) {
+          await user.reload();
+        }
+        setApprovalRequired(false);
+        setRefreshTrigger(prev => prev + 1);
+      } else {
+        alert("Failed to connect Google Account: " + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Error connecting Google Account: " + err.message);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
   
   // Modal (Popup) state
   const [selectedItem, setSelectedItem] = useState<{ type: 'email' | 'meeting', data: any } | null>(null);
@@ -187,13 +248,21 @@ export const DashboardView = () => {
   }, [aiBriefing]);
 
   useEffect(() => {
+    if (!isLoaded) return;
+    if (!user) {
+      setEmails([]);
+      setSchedule([]);
+      setIsLoading(false);
+      return;
+    }
+
     const fetchDashboardData = async () => {
       setIsLoading(true);
       
-      // Get target base date (June 16, 2026)
-      const baseDate = new Date(2026, 5, 16);
+      // Get current date
+      const baseDate = new Date();
       const year = baseDate.getFullYear();
-      const month = baseDate.getMonth() + 1; // 6 for June
+      const month = baseDate.getMonth() + 1;
       
       let fetchedSchedule: any[] = [];
       let calendarAuthUrl = null;
@@ -202,7 +271,7 @@ export const DashboardView = () => {
         const json = await res.json();
         if (json.success && Array.isArray(json.items)) {
           const parsedEvents = json.items.map(parseGoogleEvent);
-          // Filter for June 16, 2026
+          // Filter for current date
           fetchedSchedule = parsedEvents.filter((e: any) => {
             const eYear = e.startDateObj.getFullYear();
             const eMonth = e.startDateObj.getMonth();
@@ -212,8 +281,8 @@ export const DashboardView = () => {
                    eDate === baseDate.getDate();
           });
           fetchedSchedule.sort((a, b) => a.startDateObj.getTime() - b.startDateObj.getTime());
-        } else if (json.error === 'Approval Required' && json.approvalUrl) {
-          calendarAuthUrl = json.approvalUrl;
+        } else if (json.error === 'Approval Required') {
+          calendarAuthUrl = true;
         }
       } catch (e) {
         console.error("Failed to fetch calendar events for dashboard:", e);
@@ -223,7 +292,7 @@ export const DashboardView = () => {
       let fetchedEmails = [];
       let gmailAuthUrl = null;
       try {
-        const cached = localStorage.getItem('glideflow_inbox_cache');
+        const cached = localStorage.getItem(`glideflow_inbox_cache_${user.id}`);
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -235,17 +304,20 @@ export const DashboardView = () => {
       try {
         const res = await fetch('/api/test-gmail');
         const json = await res.json();
-        if (!json.success && json.error === 'Approval Required' && json.approvalUrl) {
-          gmailAuthUrl = json.approvalUrl;
+        if (json.success && Array.isArray(json.messages)) {
+          fetchedEmails = json.messages.slice(0, 4);
+          localStorage.setItem(`glideflow_inbox_cache_${user.id}`, JSON.stringify(json.messages));
+        } else if (!json.success && json.error === 'Approval Required') {
+          gmailAuthUrl = true;
         }
       } catch (e) {
         console.error("Failed to fetch Gmail for auth check:", e);
       }
 
       if (gmailAuthUrl || calendarAuthUrl) {
-        setAuthUrl(gmailAuthUrl || calendarAuthUrl);
+        setApprovalRequired(true);
       } else {
-        setAuthUrl(null);
+        setApprovalRequired(false);
       }
 
       // Fallback emails if no cache is available
@@ -311,7 +383,7 @@ export const DashboardView = () => {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [user?.id, isLoaded, fetchAiBriefing, refreshTrigger]);
 
   if (isLoading) {
     return (
@@ -405,7 +477,7 @@ export const DashboardView = () => {
               <Sparkles size={14} style={{ animation: 'pulse-glow 2s infinite alternate' }} />
             </div>
             <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>AI Daily Briefing</h3>
-            {!authUrl && (
+            {!approvalRequired && (
               <>
                 <span style={{ fontSize: '0.65rem', background: 'rgba(139, 92, 246, 0.12)', color: '#c4b5fd', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{aiProvider}</span>
                 {aiUsage && !aiUsage.isPro && (
@@ -416,7 +488,7 @@ export const DashboardView = () => {
               </>
             )}
           </div>
-          {!authUrl && (
+          {!approvalRequired && (
             <button
               onClick={() => fetchAiBriefing(emails, schedule)}
               disabled={aiBriefingLoading}
@@ -429,23 +501,23 @@ export const DashboardView = () => {
             </button>
           )}
         </div>
-        {authUrl ? (
+        {approvalRequired ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '6px 0' }}>
             <p style={{ color: '#f59e0b', fontSize: '0.9rem', lineHeight: '1.5', margin: 0 }}>
               <b>Google Account Sync Required:</b> Link your Google Account to enable the AI Morning Briefing and sync your workspace emails and calendar items.
             </p>
             <div>
-              <a 
-                href={authUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button 
+                onClick={handleConnectGoogle}
+                disabled={isConnecting}
                 style={{ 
                   background: '#f59e0b', 
                   color: '#000', 
+                  border: 'none',
                   padding: '8px 16px', 
                   borderRadius: '6px', 
                   fontWeight: 700, 
-                  textDecoration: 'none',
+                  cursor: isConnecting ? 'wait' : 'pointer',
                   fontSize: '0.85rem',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -455,8 +527,8 @@ export const DashboardView = () => {
                 onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
                 onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
               >
-                Connect Google Account <ExternalLink size={14} />
-              </a>
+                {isConnecting ? 'Connecting...' : 'Connect Google Account'} <ExternalLink size={14} />
+              </button>
             </div>
           </div>
         ) : aiBriefingLoading && !aiBriefingDisplayed ? (

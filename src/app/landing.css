@@ -1,0 +1,580 @@
+/* ==========================================================================
+   1. PREMIUM UX SYSTEM & GRAPHICS OVERHAUL
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-app-dark: #070709;
+  --bg-card-glass: rgba(255, 255, 255, 0.015);
+  --bg-card-hover: rgba(255, 255, 255, 0.035);
+  
+  --border-glow-soft: rgba(255, 255, 255, 0.05);
+  --border-glow-heavy: rgba(255, 255, 255, 0.15);
+  --border-indigo-glow: rgba(99, 102, 241, 0.15);
+  
+  --text-main: #f8fafc;
+  --text-sub: #94a3b8;
+  --text-dark-zinc: #475569;
+  --accent-color: #6366f1;
+  
+  --panel-blur: blur(30px);
+  --transition-ux: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.landing-wrapper {
+  background-color: var(--bg-app-dark);
+  color: var(--text-main);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  letter-spacing: -0.015em;
+  line-height: 1.5;
+}
+
+/* UNIVERSAL RIGID CONTAINERS (Strict width caps to stop stretching) */
+.section-block {
+  width: 100%;
+  padding: 100px 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.layout-hero { max-width: 940px; width: 100%; }
+.layout-bento { max-width: 1000px; width: 100%; }
+.layout-workflow { max-width: 980px; width: 100%; }
+.layout-metrics { max-width: 960px; width: 100%; }
+.layout-pricing { max-width: 780px; width: 100%; } /* Perfectly narrow for 2 cards */
+.layout-faq { max-width: 660px; width: 100%; }     /* Super clean readable paragraph width */
+
+/* High-Fidelity Deep Blur Glass System */
+.glass-card {
+  background: var(--bg-card-glass);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--border-glow-soft);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4), inset 0 1px 0px rgba(255, 255, 255, 0.05);
+  transition: var(--transition-ux);
+}
+
+.glass-card:hover {
+  border-color: var(--border-glow-heavy);
+  background: var(--bg-card-hover);
+  box-shadow: 0 40px 80px rgba(99, 102, 241, 0.03);
+  transform: translateY(-4px);
+}
+
+/* Layered Background Lights */
+.bg-light-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(150px);
+  z-index: 0;
+  opacity: 0.45;
+}
+.orb-left { top: 2%; left: 15%; width: 500px; height: 400px; background: rgba(99, 102, 241, 0.1); }
+.orb-right { top: 38%; right: 10%; width: 600px; height: 500px; background: rgba(168, 85, 247, 0.06); }
+.orb-center { bottom: 12%; left: 25%; width: 500px; height: 500px; background: rgba(16, 185, 129, 0.04); }
+
+/* ==========================================================================
+   2. HERO COCKPIT STYLING
+   ========================================================================== */
+.hero-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-silver);
+  margin-bottom: 28px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-glow-soft);
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  box-shadow: 0 0 10px var(--accent-color);
+}
+
+.main-headline {
+  font-size: clamp(2.4rem, 6vw, 4.25rem);
+  font-weight: 800;
+  line-height: 1.15;
+  margin-bottom: 20px;
+  background: linear-gradient(180deg, #ffffff 40%, #cbd5e1 80%, #64748b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.main-desc {
+  color: var(--text-sub);
+  font-size: clamp(1rem, 1.8vw, 1.15rem);
+  font-weight: 400;
+  line-height: 1.6;
+  max-w: 620px;
+  margin-bottom: 40px;
+}
+
+.action-trigger-group {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 70px;
+}
+
+@media (max-width: 640px) {
+  .action-trigger-group { flex-direction: column; width: 100%; align-items: center; }
+  .ux-btn-primary, .ux-btn-secondary { width: 100%; max-w: 260px; }
+}
+
+.ux-btn-primary {
+  padding: 15px 32px;
+  border-radius: 12px;
+  background-color: var(--text-main);
+  color: #000000;
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.12);
+  transition: var(--transition-ux);
+}
+.ux-btn-primary:hover { transform: translateY(-2px); background-color: #e2e8f0; }
+
+.ux-btn-secondary {
+  padding: 15px 32px;
+  border-radius: 12px;
+  color: var(--text-main);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.app-frame-wrapper {
+  width: 100%;
+  padding: 8px;
+  border-radius: 20px;
+}
+
+.app-frame-layout {
+  width: 100%;
+  aspect-ratio: 16/10;
+  border-radius: 14px;
+  background-color: #020203;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  padding: 20px;
+  display: flex;
+  gap: 20px;
+}
+
+/* ==========================================================================
+   3. ECOSYSTEM TRUST NODES
+   ========================================================================== */
+.trust-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+}
+
+@media (max-width: 850px) {
+  .trust-wrapper { flex-direction: column; text-align: center; }
+}
+
+.trust-caption {
+  color: var(--text-dark-zinc);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trust-row-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.trust-node-badge {
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--text-silver);
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   4. THE CORE BENTO GRID
+   ========================================================================== */
+.module-center-header {
+  text-align: center;
+  margin-bottom: 56px;
+}
+
+.module-grid-engine {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .module-grid-engine { grid-template-columns: 1fr; }
+  .extended-span { grid-column: auto !important; }
+}
+
+.extended-span { grid-column: span 2; }
+
+.module-block-card {
+  border-radius: 20px;
+  padding: 32px;
+}
+
+.module-index {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--accent-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-indigo-glow);
+}
+
+.module-block-card h3 { font-size: 19px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em; }
+.module-block-card p { color: var(--text-sub); font-size: 14px; font-weight: 400; line-height: 1.55; }
+
+/* ==========================================================================
+   5. AI TRANSFORMATION WORKFLOW
+   ========================================================================== */
+.pipe-integration-flex {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 56px;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .pipe-integration-flex { grid-template-columns: 1fr; gap: 40px; }
+}
+
+.flow-step-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.flow-step-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text-silver);
+}
+
+.flow-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-glow-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.visual-data-terminal {
+  border-radius: 20px;
+  padding: 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.terminal-input-segment { padding: 12px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-glow-soft); border-radius: 8px; }
+.terminal-output-segment { padding: 12px; background: rgba(99, 102, 241, 0.02); border: 1px solid var(--border-indigo-glow); border-radius: 8px; color: #ffffff; }
+
+/* ==========================================================================
+   6. ARCHITECTURAL METRICS
+   ========================================================================== */
+.telemetry-row-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.telemetry-node {
+  border-radius: 16px;
+  padding: 28px;
+  text-align: center;
+}
+
+.telemetry-metric {
+  font-size: clamp(1.8rem, 3vw, 2.25rem);
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  background: linear-gradient(180deg, #ffffff 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+
+.telemetry-label { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text-main); }
+.telemetry-desc { font-size: 12px; color: var(--text-dark-zinc); }
+
+/* ==========================================================================
+   7. MONETIZATION GRID (Compact Centered Design)
+   ========================================================================== */
+.monetization-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .monetization-layout-grid { grid-template-columns: 1fr; }
+}
+
+.pricing-frosted-card {
+  border-radius: 20px;
+  padding: 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.pricing-frosted-card.premium-glow-tier {
+  border-color: rgba(99, 102, 241, 0.2);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.02) 0%, transparent 100%);
+}
+
+.pricing-frosted-card h4 { font-size: 16px; font-weight: 600; color: var(--text-sub); margin-bottom: 12px; }
+.pricing-frosted-card .rate-block { font-size: 32px; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin-bottom: 24px; }
+.pricing-frosted-card .rate-block span { font-size: 13.5px; color: var(--text-dark-zinc); font-family: sans-serif; font-weight: 400; }
+
+.pricing-feature-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin-bottom: 32px;
+  font-size: 13.5px;
+  color: var(--text-sub);
+}
+
+/* User-friendly precise alignment layout indicators */
+.pricing-feature-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pricing-feature-checklist li::before {
+  content: "✦";
+  color: var(--accent-color);
+  font-size: 11px;
+}
+
+.pricing-feature-checklist li.locked-feature {
+  opacity: 0.25;
+  text-decoration: line-through;
+}
+.pricing-feature-checklist li.locked-feature::before {
+  color: var(--text-dark-zinc);
+}
+
+.tier-action-button {
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition-ux);
+}
+.btn-tier-standard { background: rgba(255,255,255,0.02); border: 1px solid var(--border-glow-soft); color: var(--text-main); }
+.btn-tier-standard:hover { background: rgba(255,255,255,0.05); }
+.btn-tier-premium { background: var(--text-main); color: #000000; }
+.btn-tier-premium:hover { background: #e2e8f0; transform: translateY(-2px); }
+
+/* ==========================================================================
+   8. CONTEXTUAL ACCORDION (FAQ Modular Alignment)
+   ========================================================================== */
+.faq-accordion-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.faq-row-item {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.faq-row-toggle {
+  width: 100%;
+  padding: 18px 22px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.faq-row-toggle:hover { background: rgba(255, 255, 255, 0.01); }
+
+.faq-row-status-icon { 
+  font-family: 'JetBrains Mono', monospace; 
+  font-size: 11px; 
+  color: var(--text-dark-zinc); 
+}
+
+.faq-row-content-panel {
+  padding: 0 22px 18px 22px;
+  font-size: 13.5px;
+  color: var(--text-sub);
+  line-height: 1.6;
+  border-top: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+/* ==========================================================================
+   9. SECURITY & ONBOARDING SYSTEM (Authorization Guide)
+   ========================================================================== */
+.layout-auth-guide {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.auth-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 32px;
+  margin-top: 40px;
+}
+
+@media (max-width: 768px) {
+  .auth-split-grid { grid-template-columns: 1fr; }
+}
+
+.security-trust-card {
+  padding: 32px;
+  border-radius: 20px;
+  height: max-content;
+}
+
+.security-trust-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: #ffffff;
+}
+
+.trust-item-row {
+  margin-bottom: 16px;
+}
+.trust-item-row:last-child { margin-bottom: 0; }
+
+.trust-item-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-silver);
+  margin-bottom: 4px;
+}
+.trust-item-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Step Timeline Design */
+.timeline-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stepper-row-card {
+  padding: 16px 20px;
+  border-radius: 14px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.stepper-badge-idx {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid var(--border-indigo-glow);
+  color: var(--accent-color);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.stepper-content-text {
+  font-size: 13.5px;
+  color: var(--text-silver);
+  line-height: 1.45;
+}
+
+.stepper-content-text strong {
+  color: #ffffff;
+}
+
+.sandbox-alert-box {
+  background: rgba(251, 191, 36, 0.02) !important;
+  border-color: rgba(251, 191, 36, 0.15) !important;
+}
+.sandbox-alert-box .stepper-badge-idx {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}

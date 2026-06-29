@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { URL } from 'url';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,11 @@ async function callMcp(mcpUrl: string, apiKey: string, method: string, params: a
 
     const sessionId = initResponse.headers.get('mcp-session-id');
     if (!sessionId) {
-        throw new Error("Failed to retrieve mcp-session-id from response headers");
+        const text = await initResponse.text();
+        if (text.includes("Approval required") || text.includes("approve")) {
+            throw new Error(`Approval required. Click here to approve: ${text}`);
+        }
+        throw new Error(`Failed to retrieve mcp-session-id from response headers. Status: ${initResponse.status}. Response: ${text}`);
     }
 
     const reader = initResponse.body?.getReader();
@@ -142,10 +146,22 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
         const { userId } = await auth();
+        const user = await currentUser();
         if (!userId) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-        
-        const tenantId = encodeURIComponent(userId);
+
         const integrationId = process.env.CORSAIR_INTEGRATION_ID || "93fa7425b1a34ddc82d3d5128c1bf167";
+        const googleConnected = user?.publicMetadata?.googleConnected === true;
+        const version = user?.publicMetadata?.googleConnectionVersion || 1;
+        if (!googleConnected) {
+            return NextResponse.json({ 
+                success: false, 
+                error: "Approval Required"
+            }, { status: 403 });
+        }
+        
+        const rawEmail = user?.primaryEmailAddress?.emailAddress || userId;
+        const tenantId = encodeURIComponent(`${rawEmail}_v${version}`);
+        console.log(`[API] Gmail GET - userId: "${userId}", email: "${user?.primaryEmailAddress?.emailAddress}", tenantId: "${tenantId}"`);
         const mcpUrl = `https://api.corsair.dev/mcp/${integrationId}?tenantId=${tenantId}`;
 
         if (id) {
@@ -166,10 +182,15 @@ export async function GET(request: Request) {
                 name: "run_script",
                 arguments: {
                     code: `
-                    const listResult = await corsair.gmail.api.messages.list({ userId: "me", maxResults: 10, q: "${dateQuery}" });
+                    const listResult = await corsair.gmail.api.messages.list({ userId: "me", maxResults: 50, q: "${dateQuery}" });
                     const messages = listResult.messages || [];
-                    const detailResults = await Promise.allSettled(messages.map(m => corsair.gmail.api.messages.get({ userId: "me", id: m.id })));
-                    const details = detailResults.filter(r => r.status === 'fulfilled').map(r => r.value);
+                    const details = [];
+                    for (const m of messages) {
+                        try {
+                            const d = await corsair.gmail.api.messages.get({ userId: "me", id: m.id });
+                            details.push(d);
+                        } catch (e) {}
+                    }
                     return { details };
                     `
                 }
@@ -185,7 +206,11 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: true, messages: messagesList });
         }
     } catch (error: any) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        const isApprovalError = error.message && (error.message.includes('Approval required') || error.message.includes('approve'));
+        return NextResponse.json({ 
+            success: false,
+            error: isApprovalError ? "Approval Required" : error.message
+        }, { status: isApprovalError ? 403 : 500 });
     }
 }
 
@@ -196,10 +221,17 @@ export async function DELETE(request: Request) {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
         const { userId } = await auth();
+        const user = await currentUser();
         if (!id || !userId) return NextResponse.json({ success: false }, { status: 400 });
-        
-        const tenantId = encodeURIComponent(userId);
+
         const integrationId = process.env.CORSAIR_INTEGRATION_ID || "93fa7425b1a34ddc82d3d5128c1bf167";
+        const googleConnected = user?.publicMetadata?.googleConnected !== false;
+        if (!googleConnected) {
+            return NextResponse.json({ success: false, error: "Google connection un-authorized by user settings" }, { status: 403 });
+        }
+        const version = user?.publicMetadata?.googleConnectionVersion || 1;
+        const rawEmail = user?.primaryEmailAddress?.emailAddress || userId;
+        const tenantId = encodeURIComponent(`${rawEmail}_v${version}`);
         const mcpUrl = `https://api.corsair.dev/mcp/${integrationId}?tenantId=${tenantId}`;
 
         await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {

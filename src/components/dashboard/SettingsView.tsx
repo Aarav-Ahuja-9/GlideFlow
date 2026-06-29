@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { 
   User, Mail, Calendar, Shield, CreditCard, Check, Sparkles, Clock, HelpCircle, 
@@ -12,10 +12,96 @@ import styles from '@/app/dashboard/dashboard.module.css';
 export default function SettingsView() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
   const [selectedPlan, setSelectedPlan] = useState('Free');
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
+  const [isUnauthorizing, setIsUnauthorizing] = useState(false);
+
+  const googleConnected = user?.publicMetadata?.googleConnected !== false;
+
+  const handleGoogleAuthorize = async () => {
+    setIsAuthorizing(true);
+    try {
+      const email = user?.primaryEmailAddress?.emailAddress || '';
+      if (!email) {
+        showToast("Error: No active email found!");
+        return;
+      }
+      
+      const res = await fetch('/api/account/connect', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        await user?.reload();
+        if (data.alreadyConnected) {
+          showToast("Google integration already authorized!");
+        } else if (data.approvalUrl) {
+          window.open(data.approvalUrl, '_blank');
+          showToast("Google integration initiated. Opening sign-in...");
+        } else {
+          showToast("Successfully initialized integration connection.");
+        }
+      } else {
+        showToast(`Failed to authorize: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      showToast('Network error during Google authorization.');
+      console.error(err);
+    } finally {
+      setIsAuthorizing(false);
+    }
+  };
+
+  const handleGoogleUnauthorize = async () => {
+    setIsUnauthorizing(true);
+    try {
+      const res = await fetch('/api/account/unauthorize', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        if (user?.id) {
+          localStorage.removeItem(`glideflow_inbox_cache_${user.id}`);
+          localStorage.removeItem(`glideflow_calendar_cache_${user.id}`);
+        }
+        await user?.reload();
+        showToast("Google integration un-authorized. Cache cleared.");
+      } else {
+        showToast(`Failed to un-authorize: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      showToast('Network error during Google un-authorization.');
+      console.error(err);
+    } finally {
+      setIsUnauthorizing(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch('/api/account/delete', {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Account data successfully cleared. Signing out...');
+        setTimeout(async () => {
+          await signOut();
+          router.push('/');
+        }, 1500);
+      } else {
+        showToast(`Failed to delete account data: ${data.error || 'Unknown error'}`);
+        setIsDeleting(false);
+      }
+    } catch (err) {
+      showToast('Network error while deleting account.');
+      console.error('Delete account error:', err);
+      setIsDeleting(false);
+    }
+  };
 
   
   // Custom states for notifications toggles
@@ -331,6 +417,94 @@ export default function SettingsView() {
             </div>
           </div>
 
+          {/* Google Workspace Integration */}
+          <div className={styles.card}>
+            <div className={styles.cardTitle} style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={18} color="#22c55e" /> Google Workspace Integration
+            </div>
+            
+            <p style={{ fontSize: '0.8rem', color: '#a1a1aa', marginBottom: '1.2rem', lineHeight: '1.5' }}>
+              {googleConnected 
+                ? "Your Google Workspace account is securely linked. You can disconnect it at any time to clear cached data."
+                : "Sync and link your Google Account to authorize GlideFlow to manage emails and calendar events."
+              }
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '10px' }}>
+                <span style={{ color: '#717171' }}>Connection Status:</span>
+                <span style={{ 
+                  color: googleConnected ? '#22c55e' : '#ef4444', 
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span style={{ 
+                    width: '6px', 
+                    height: '6px', 
+                    borderRadius: '50%', 
+                    backgroundColor: googleConnected ? '#22c55e' : '#ef4444',
+                    boxShadow: googleConnected ? '0 0 6px #22c55e' : '0 0 6px #ef4444'
+                  }}></span>
+                  {googleConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+
+              {googleConnected ? (
+                <button 
+                  onClick={handleGoogleUnauthorize}
+                  disabled={isUnauthorizing}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    color: '#ef4444',
+                    padding: '10px 14px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: isUnauthorizing ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'opacity 0.2s',
+                    opacity: isUnauthorizing ? 0.6 : 1
+                  }}
+                  onMouseOver={(e) => { if (!isUnauthorizing) e.currentTarget.style.opacity = '0.9'; }}
+                  onMouseOut={(e) => { if (!isUnauthorizing) e.currentTarget.style.opacity = '1'; }}
+                >
+                  {isUnauthorizing ? 'Un-authorizing...' : 'Un-authorize Google Account'}
+                </button>
+              ) : (
+                <button 
+                  onClick={handleGoogleAuthorize}
+                  disabled={isAuthorizing}
+                  style={{
+                    background: '#22c55e',
+                    border: 'none',
+                    color: '#000',
+                    padding: '10px 14px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: isAuthorizing ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'opacity 0.2s',
+                    opacity: isAuthorizing ? 0.6 : 1
+                  }}
+                  onMouseOver={(e) => { if (!isAuthorizing) e.currentTarget.style.opacity = '0.9'; }}
+                  onMouseOut={(e) => { if (!isAuthorizing) e.currentTarget.style.opacity = '1'; }}
+                >
+                  {isAuthorizing ? 'Authorizing...' : 'Authorize Google Account'}
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Option B: Data Export & Privacy */}
           <div className={styles.card}>
             <div className={styles.cardTitle} style={{ marginBottom: '1rem' }}>
@@ -338,7 +512,7 @@ export default function SettingsView() {
             </div>
             
             <p style={{ fontSize: '0.8rem', color: '#a1a1aa', marginBottom: '1.2rem', lineHeight: '1.5' }}>
-              Download a backup archive of your dashboard calendar configurations, linked account settings, and workflow context.
+              Export a backup copy of your local data, or delete your account records permanently.
             </p>
             
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -363,7 +537,7 @@ export default function SettingsView() {
                 <Download size={14} /> Export Data
               </button>
               <button 
-                onClick={() => showToast('Delete account request submitted. Our support team will contact you.')}
+                onClick={() => setShowDeleteConfirm(true)}
                 style={{
                   background: 'rgba(239, 68, 68, 0.1)',
                   border: '1px solid rgba(239, 68, 68, 0.2)',
@@ -375,7 +549,7 @@ export default function SettingsView() {
                   cursor: 'pointer'
                 }}
               >
-                Delete
+                Delete Account
               </button>
             </div>
           </div>
@@ -690,6 +864,59 @@ export default function SettingsView() {
                 style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
               >
                 Downgrade
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }} onClick={() => setShowDeleteConfirm(false)}>
+          
+          <div style={{
+            background: '#0c0c0e', border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '16px', width: '90%', maxWidth: '400px', padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.3)', position: 'relative',
+            display: 'flex', flexDirection: 'column', gap: '16px'
+          }} onClick={(e) => e.stopPropagation()}>
+            
+            <h3 style={{ fontSize: '1.15rem', color: '#fff', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#ef4444' }}>🚨</span> Delete Account Permanently
+            </h3>
+
+            <p style={{ fontSize: '0.85rem', color: '#a1a1aa', lineHeight: '1.5', margin: 0 }}>
+              Are you absolutely sure you want to delete your account? This action is **irreversible**.
+              All your calendar events, synced emails, cache indexes, and preferences will be permanently wiped from our databases.
+            </p>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '8px 16px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleDeleteAccount}
+                disabled={isDeleting}
+                style={{ 
+                  background: '#ef4444', 
+                  color: '#fff', 
+                  border: 'none', 
+                  padding: '8px 16px', 
+                  borderRadius: '6px', 
+                  fontSize: '0.8rem', 
+                  fontWeight: 600, 
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  opacity: isDeleting ? 0.6 : 1
+                }}
+              >
+                {isDeleting ? 'Deleting...' : 'Wipe Data & Delete'}
               </button>
             </div>
           </div>

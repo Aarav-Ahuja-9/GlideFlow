@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import { 
   Mail, Paperclip, CornerUpLeft, X, Keyboard, Search, ChevronRight, Check,
   Trash2, Loader2, Bell, ExternalLink, Sparkles, Wand2, Zap, ShieldCheck, FileEdit
@@ -52,38 +53,26 @@ const INITIAL_EMAILS = [
     hasAttachment: true, attachmentName: 'settings_ui_v2.png', requiresReply: true 
   }
 ];
-
 export default function InboxView() {
-  const [emails, setEmails] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('glideflow_inbox_cache');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
+  const { user, isLoaded } = useUser();
+  const [emails, setEmails] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    try {
+      const cached = localStorage.getItem(`glideflow_inbox_cache_${user.id}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setEmails(parsed);
+          setLoading(false);
         }
-      } catch (e) {
-        console.error("Failed to parse cached emails:", e);
       }
+    } catch (e) {
+      console.error("Failed to parse cached emails:", e);
     }
-    return [];
-  });
-  const [loading, setLoading] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('glideflow_inbox_cache');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return false;
-          }
-        }
-      } catch (e) {}
-    }
-    return true;
-  });
+  }, [user, isLoaded]);
   const [error, setError] = useState<string | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -125,7 +114,31 @@ export default function InboxView() {
   // AI Draft states
   const [aiDraftPrompt, setAiDraftPrompt] = useState('');
   const [aiDraftLoading, setAiDraftLoading] = useState(false);
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnectGmail = async () => {
+    setIsConnecting(true);
+    try {
+      const res = await fetch('/api/account/connect', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        if (data.approvalUrl) {
+          window.open(data.approvalUrl, '_blank');
+        }
+        if (user) {
+          await user.reload();
+        }
+        setSyncTrigger(prev => prev + 1);
+      } else {
+        alert("Failed to connect Google Account: " + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Error connecting Google Account: " + err.message);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   const handleAiDraft = async () => {
     if (!aiDraftPrompt.trim() || !selectedEmail) return;
@@ -183,7 +196,9 @@ export default function InboxView() {
           const next = prev.map(item => 
             item.id === emailId ? { ...json.data, loading: false } : item
           );
-          localStorage.setItem('glideflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
+          if (user) {
+            localStorage.setItem(`glideflow_inbox_cache_${user.id}`, JSON.stringify(next.filter(e => !e.loading)));
+          }
           return next;
         });
       } else if (active) {
@@ -205,7 +220,9 @@ export default function InboxView() {
               requiresReply: false 
             } : item
           );
-          localStorage.setItem('glideflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
+          if (user) {
+            localStorage.setItem(`glideflow_inbox_cache_${user.id}`, JSON.stringify(next.filter(e => !e.loading)));
+          }
           return next;
         });
       }
@@ -229,7 +246,9 @@ export default function InboxView() {
               requiresReply: false 
             } : item
           );
-          localStorage.setItem('glideflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
+          if (user) {
+            localStorage.setItem(`glideflow_inbox_cache_${user.id}`, JSON.stringify(next.filter(e => !e.loading)));
+          }
           return next;
         });
       }
@@ -237,6 +256,14 @@ export default function InboxView() {
   };
 
   useEffect(() => {
+    if (!isLoaded) return;
+    if (!user) {
+      setEmails([]);
+      setLoading(false);
+      setIsSyncing(false);
+      return;
+    }
+
     let active = true;
     async function fetchEmails() {
       try {
@@ -255,7 +282,6 @@ export default function InboxView() {
           if (json.success && Array.isArray(json.messages)) {
             setNextPageToken(json.nextPageToken || null);
             setError(null);
-            setAuthUrl(null);
             setLoading(false);
             setIsSyncing(true);
             setSyncPageCount(1);
@@ -298,9 +324,6 @@ export default function InboxView() {
               return reconciled;
             });
           } else {
-            if (json.error === 'Approval Required' && json.approvalUrl) {
-              setAuthUrl(json.approvalUrl);
-            }
             setError(json.details || json.error || 'Failed to fetch emails');
             setEmails(prev => prev.length > 0 ? prev : INITIAL_EMAILS);
             setLoading(false);
@@ -320,7 +343,7 @@ export default function InboxView() {
     return () => {
       active = false;
     };
-  }, [syncTrigger]);
+  }, [syncTrigger, user?.id, isLoaded]);
 
   // Tab focus revalidation and background polling (every 30 seconds)
   useEffect(() => {
@@ -610,30 +633,7 @@ export default function InboxView() {
         }
       `}</style>
 
-      {error && (
-        <div style={{ 
-          padding: '10px 14px', 
-          background: 'rgba(239, 68, 68, 0.08)', 
-          border: '1px solid rgba(239, 68, 68, 0.2)', 
-          borderRadius: '8px', 
-          color: '#f87171', 
-          fontSize: '0.85rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <span>Showing backup offline data. Connection warning: {error}</span>
-          <button 
-            onClick={() => setError(null)} 
-            style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontWeight: 600 }}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {authUrl && (
+      {error === 'Approval Required' ? (
         <div style={{ 
           padding: '14px 18px', 
           background: 'rgba(245, 158, 11, 0.08)', 
@@ -653,17 +653,17 @@ export default function InboxView() {
               <b>Google Account Sync Required:</b> GlideFlow needs access to your Gmail to fetch your messages.
             </span>
           </div>
-          <a 
-            href={authUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button 
+            onClick={handleConnectGmail}
+            disabled={isConnecting}
             style={{ 
               background: '#f59e0b', 
               color: '#000', 
+              border: 'none',
               padding: '6px 14px', 
               borderRadius: '6px', 
               fontWeight: 700, 
-              textDecoration: 'none',
+              cursor: isConnecting ? 'wait' : 'pointer',
               fontSize: '0.8rem',
               display: 'flex',
               alignItems: 'center',
@@ -673,10 +673,33 @@ export default function InboxView() {
             onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
             onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
           >
-            Connect Gmail <ExternalLink size={12} />
-          </a>
+            {isConnecting ? 'Connecting...' : 'Connect Gmail'} <ExternalLink size={12} />
+          </button>
         </div>
-      )}
+      ) : error ? (
+        <div style={{ 
+          padding: '10px 14px', 
+          background: 'rgba(239, 68, 68, 0.08)', 
+          border: '1px solid rgba(239, 68, 68, 0.2)', 
+          borderRadius: '8px', 
+          color: '#f87171', 
+          fontSize: '0.85rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+            <span>Showing backup offline data. Connection warning: {error}</span>
+          </div>
+          <button 
+            onClick={() => setError(null)} 
+            style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontWeight: 600 }}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
       {notification && (
         <div style={{ 
@@ -1290,7 +1313,9 @@ export default function InboxView() {
                         if (json.success) {
                           setEmails((prev: any[]) => {
                             const next = prev.filter((e: any) => e.id !== deletingEmailState.emailId);
-                            localStorage.setItem('glideflow_inbox_cache', JSON.stringify(next.filter(e => !e.loading)));
+                             if (user) {
+                               localStorage.setItem(`glideflow_inbox_cache_${user.id}`, JSON.stringify(next.filter(e => !e.loading)));
+                             }
                             return next;
                           });
                           setSelectedEmail(null);

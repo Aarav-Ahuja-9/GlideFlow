@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { URL } from 'url';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,11 @@ async function callMcp(mcpUrl: string, apiKey: string, method: string, params: a
 
     const sessionId = initResponse.headers.get('mcp-session-id');
     if (!sessionId) {
-        throw new Error("Failed to retrieve mcp-session-id from response headers");
+        const text = await initResponse.text();
+        if (text.includes("Approval required") || text.includes("approve")) {
+            throw new Error(`Approval required. Click here to approve: ${text}`);
+        }
+        throw new Error(`Failed to retrieve mcp-session-id from response headers. Status: ${initResponse.status}. Response: ${text}`);
     }
 
     const reader = initResponse.body?.getReader();
@@ -40,7 +44,7 @@ async function callMcp(mcpUrl: string, apiKey: string, method: string, params: a
                     const { done } = await reader.read();
                     if (done) break;
                 }
-            } catch (e) {}
+            } catch (e) { }
         })();
     }
 
@@ -69,14 +73,15 @@ async function callMcp(mcpUrl: string, apiKey: string, method: string, params: a
             } else {
                 rpcResponse = JSON.parse(responseText);
             }
-            if (rpcResponse.error) throw new Error("RPC error");
+            if (rpcResponse.error) throw new Error(rpcResponse.error.message || "RPC error");
             return rpcResponse.result;
         } catch (e: any) {
+            if (e.message && e.message !== "Parse Fail") throw e;
             throw new Error("Parse Fail");
         }
     } finally {
         streamActive = false;
-        if (reader) reader.cancel().catch(() => {});
+        if (reader) reader.cancel().catch(() => { });
     }
 }
 
@@ -117,10 +122,22 @@ export async function GET(request: Request) {
         const timeMax = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)).toISOString();
 
         const { userId } = await auth();
+        const user = await currentUser();
         if (!userId) return NextResponse.json({ success: false }, { status: 401 });
-        
-        const tenantId = encodeURIComponent(userId);
+
         const integrationId = process.env.CORSAIR_INTEGRATION_ID || "93fa7425b1a34ddc82d3d5128c1bf167";
+        const googleConnected = user?.publicMetadata?.googleConnected === true;
+        const version = user?.publicMetadata?.googleConnectionVersion || 1;
+        if (!googleConnected) {
+            return NextResponse.json({ 
+                success: false, 
+                error: "Approval Required"
+            }, { status: 403 });
+        }
+
+        const rawEmail = user?.primaryEmailAddress?.emailAddress || userId;
+        const tenantId = encodeURIComponent(`${rawEmail}_v${version}`);
+        console.log(`[API] Calendar GET - userId: "${userId}", email: "${user?.primaryEmailAddress?.emailAddress}", tenantId: "${tenantId}"`);
         const mcpUrl = `https://api.corsair.dev/mcp/${integrationId}?tenantId=${tenantId}`;
 
         console.log(`Fetching calendar events dynamically...`);
@@ -143,11 +160,15 @@ export async function GET(request: Request) {
         const textResult = result.content?.[0]?.text;
         let items = [];
         if (textResult) {
-            try { items = JSON.parse(textResult).items || []; } catch {}
+            try { items = JSON.parse(textResult).items || []; } catch { }
         }
         return NextResponse.json({ success: true, year, month, items });
     } catch (error: any) {
-        return NextResponse.json({ success: false, details: error.message }, { status: 500 });
+        const isApprovalError = error.message && (error.message.includes('Approval required') || error.message.includes('approve'));
+        return NextResponse.json({ 
+            success: false, 
+            error: isApprovalError ? "Approval Required" : error.message
+        }, { status: isApprovalError ? 403 : 500 });
     }
 }
 
@@ -158,10 +179,21 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { event } = body;
         const { userId } = await auth();
+        const user = await currentUser();
         if (!event || !userId) return NextResponse.json({ success: false }, { status: 400 });
-        
-        const tenantId = encodeURIComponent(userId);
+
         const integrationId = process.env.CORSAIR_INTEGRATION_ID || "93fa7425b1a34ddc82d3d5128c1bf167";
+        const googleConnected = user?.publicMetadata?.googleConnected === true;
+        const version = user?.publicMetadata?.googleConnectionVersion || 1;
+        if (!googleConnected) {
+            return NextResponse.json({ 
+                success: false, 
+                error: "Approval Required"
+            }, { status: 403 });
+        }
+
+        const rawEmail = user?.primaryEmailAddress?.emailAddress || userId;
+        const tenantId = encodeURIComponent(`${rawEmail}_v${version}`);
         const mcpUrl = `https://api.corsair.dev/mcp/${integrationId}?tenantId=${tenantId}`;
 
         const result = await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {
@@ -170,9 +202,18 @@ export async function POST(request: Request) {
         });
 
         const textResult = result.content?.[0]?.text;
+        if (result.isError) {
+            console.error("MCP returned isError=true:", textResult);
+            return NextResponse.json({ success: false, error: textResult }, { status: 500 });
+        }
         return NextResponse.json({ success: true, event: textResult ? JSON.parse(textResult) : null });
     } catch (error: any) {
-        return NextResponse.json({ success: false, details: error.message }, { status: 500 });
+        console.error("Calendar POST Error:", error);
+        const isApprovalError = error.message && (error.message.includes('Approval required') || error.message.includes('approve'));
+        return NextResponse.json({ 
+            success: false, 
+            error: isApprovalError ? "Approval Required" : error.message
+        }, { status: isApprovalError ? 403 : 500 });
     }
 }
 
@@ -183,18 +224,37 @@ export async function DELETE(request: Request) {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
         const { userId } = await auth();
+        const user = await currentUser();
         if (!id || !userId) return NextResponse.json({ success: false }, { status: 400 });
-        
-        const tenantId = encodeURIComponent(userId);
+
         const integrationId = process.env.CORSAIR_INTEGRATION_ID || "93fa7425b1a34ddc82d3d5128c1bf167";
+        const googleConnected = user?.publicMetadata?.googleConnected === true;
+        if (!googleConnected) {
+            return NextResponse.json({ success: false, error: "Google connection un-authorized by user settings" }, { status: 403 });
+        }
+        const version = user?.publicMetadata?.googleConnectionVersion || 1;
+        const rawEmail = user?.primaryEmailAddress?.emailAddress || userId;
+        const tenantId = encodeURIComponent(`${rawEmail}_v${version}`);
         const mcpUrl = `https://api.corsair.dev/mcp/${integrationId}?tenantId=${tenantId}`;
 
-        await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {
+        console.log(`[API] Calendar DELETE event request - id: "${id}", tenantId: "${tenantId}"`);
+
+        const result = await callMcpWithRetry(mcpUrl, apiKey, "tools/call", {
             name: "run_script",
-            arguments: { code: `await corsair.googlecalendar.api.events.delete({ calendarId: "primary", eventId: "${id.replace(/[^a-zA-Z0-9_-]/g, '')}" }); return { success: true };` }
+            arguments: { code: `await corsair.googlecalendar.api.events.delete({ calendarId: "primary", id: "${id.replace(/[^a-zA-Z0-9_-]/g, '')}" }); return { success: true };` }
         });
+        if (result.isError) {
+            const errMsg = result.content?.[0]?.text || "Unknown deletion error";
+            console.error("Calendar DELETE MCP returned error:", errMsg);
+            return NextResponse.json({ success: false, error: errMsg }, { status: 500 });
+        }
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        return NextResponse.json({ success: false, details: error.message }, { status: 500 });
+        console.error("Calendar DELETE Error:", error);
+        const isApprovalError = error.message && (error.message.includes('Approval required') || error.message.includes('approve'));
+        return NextResponse.json({ 
+            success: false, 
+            error: isApprovalError ? "Approval Required" : error.message
+        }, { status: isApprovalError ? 403 : 500 });
     }
 }

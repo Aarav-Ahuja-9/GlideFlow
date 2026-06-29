@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { 
   Sliders, Keyboard, Check, Trash2, Plus, 
   CheckCircle, Play, Sparkles
@@ -24,7 +25,8 @@ const INITIAL_KEYBINDS = [
 ];
 
 export default function WorkspaceSettingsView() {
-  const [activeTab, setActiveTab] = useState<'preferences' | 'automation' | 'keybinds'>('preferences');
+  const { user } = useUser();
+  const [activeTab, setActiveTab] = useState<'preferences' | 'automation' | 'keybinds' | 'integrations'>('preferences');
   const [toast, setToast] = useState('');
   
   // Preferences State
@@ -47,6 +49,66 @@ export default function WorkspaceSettingsView() {
   const [keybinds, setKeybinds] = useState(INITIAL_KEYBINDS);
   const [editingKeybindId, setEditingKeybindId] = useState<string | null>(null);
   const [tempKeybindVal, setTempKeybindVal] = useState('');
+
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
+  const [isUnauthorizing, setIsUnauthorizing] = useState(false);
+
+  const googleConnected = user?.publicMetadata?.googleConnected !== false;
+
+  const handleGoogleAuthorize = async () => {
+    setIsAuthorizing(true);
+    try {
+      const email = user?.primaryEmailAddress?.emailAddress || '';
+      if (!email) {
+        triggerToast("Error: No active email found!");
+        return;
+      }
+      
+      const res = await fetch('/api/account/connect', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        await user?.reload();
+        if (data.alreadyConnected) {
+          triggerToast("Google integration already authorized!");
+        } else if (data.approvalUrl) {
+          window.open(data.approvalUrl, '_blank');
+          triggerToast("Google integration initiated. Opening sign-in...");
+        } else {
+          triggerToast("Successfully initialized integration connection.");
+        }
+      } else {
+        triggerToast(`Failed to authorize: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      triggerToast('Network error during Google authorization.');
+      console.error(err);
+    } finally {
+      setIsAuthorizing(false);
+    }
+  };
+
+  const handleGoogleUnauthorize = async () => {
+    setIsUnauthorizing(true);
+    try {
+      const res = await fetch('/api/account/unauthorize', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        if (user?.id) {
+          localStorage.removeItem(`glideflow_inbox_cache_${user.id}`);
+          localStorage.removeItem(`glideflow_calendar_cache_${user.id}`);
+        }
+        await user?.reload();
+        triggerToast("Google integration un-authorized. Cache cleared.");
+      } else {
+        triggerToast(`Failed to un-authorize: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      triggerToast('Network error during Google un-authorization.');
+      console.error(err);
+    } finally {
+      setIsUnauthorizing(false);
+    }
+  };
 
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -172,6 +234,19 @@ export default function WorkspaceSettingsView() {
           }}
         >
           <Keyboard size={16} /> Keyboard Bindings
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('integrations')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, textAlign: 'left',
+            background: activeTab === 'integrations' ? getAccentBg() : 'transparent',
+            color: activeTab === 'integrations' ? getAccentColor() : '#a1a1aa',
+            borderLeft: activeTab === 'integrations' ? `3px solid ${getAccentColor()}` : '3px solid transparent',
+            transition: 'all 0.2s'
+          }}
+        >
+          <Sparkles size={16} /> Google Integrations
         </button>
       </div>
 
@@ -546,6 +621,103 @@ export default function WorkspaceSettingsView() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* ==================== GOOGLE INTEGRATIONS TAB ==================== */}
+        {activeTab === 'integrations' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div className={styles.card}>
+              <div className={styles.cardTitle} style={{ marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={20} color={getAccentColor()} />
+                Google Workspace Connection
+              </div>
+              <p style={{ fontSize: '0.85rem', color: '#a1a1aa', marginBottom: '1.5rem', lineHeight: '1.6' }}>
+                GlideFlow isolates calendar events and inbox data per user using secure tenant namespaces. Currently, API calls are partition-locked to your active email profile. You can authorize or link a new Google account at any time.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.9rem', color: '#717171' }}>Active Session Email:</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#fff' }}>{user?.primaryEmailAddress?.emailAddress || 'Not Authenticated'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '1rem' }}>
+                  <span style={{ fontSize: '0.9rem', color: '#717171' }}>Partition Integration Status:</span>
+                  <span style={{ 
+                    fontSize: '0.85rem', 
+                    color: googleConnected ? '#22c55e' : '#ef4444', 
+                    background: googleConnected ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', 
+                    padding: '4px 10px', 
+                    borderRadius: '6px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px', 
+                    fontWeight: 600 
+                  }}>
+                    <span style={{ 
+                      width: '8px', 
+                      height: '8px', 
+                      borderRadius: '50%', 
+                      background: googleConnected ? '#22c55e' : '#ef4444', 
+                      boxShadow: googleConnected ? '0 0 8px #22c55e' : '0 0 8px #ef4444' 
+                    }}></span>
+                    {googleConnected ? 'Active (Tenant-Isolated)' : 'Disconnected / Un-authorized'}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                {googleConnected ? (
+                  <button
+                    onClick={handleGoogleUnauthorize}
+                    disabled={isUnauthorizing}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      padding: '0.65rem 1.5rem',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '0.9rem',
+                      cursor: isUnauthorizing ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'opacity 0.2s',
+                      opacity: isUnauthorizing ? 0.6 : 1
+                    }}
+                    onMouseEnter={(e) => { if (!isUnauthorizing) e.currentTarget.style.opacity = '0.9'; }}
+                    onMouseLeave={(e) => { if (!isUnauthorizing) e.currentTarget.style.opacity = '1'; }}
+                  >
+                    {isUnauthorizing ? 'Un-authorizing...' : 'Un-authorize Google Account'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleGoogleAuthorize}
+                    disabled={isAuthorizing}
+                    style={{
+                      background: getAccentColor(),
+                      color: '#000',
+                      border: 'none',
+                      padding: '0.65rem 1.5rem',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '0.9rem',
+                      cursor: isAuthorizing ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'opacity 0.2s',
+                      opacity: isAuthorizing ? 0.6 : 1
+                    }}
+                    onMouseEnter={(e) => { if (!isAuthorizing) e.currentTarget.style.opacity = '0.9'; }}
+                    onMouseLeave={(e) => { if (!isAuthorizing) e.currentTarget.style.opacity = '1'; }}
+                  >
+                    {isAuthorizing ? 'Authorizing...' : 'Connect / Link Google Account'}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

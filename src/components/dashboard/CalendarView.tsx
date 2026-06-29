@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { 
   Calendar, Clock, Video, Users, Link2, ExternalLink, Plus, CheckCircle2, Bell, Zap, ChevronLeft, ChevronRight, CheckSquare, List, Loader2, Trash2, X, Sparkles, ShieldCheck, FileEdit
 } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
 import styles from '@/app/dashboard/dashboard.module.css';
 
 // Base date centering: June 16, 2026 to align with mock, or rolling
@@ -77,9 +78,41 @@ function getMonthGridCells(monthStr: string) {
 
 // Parse google calendar events to internal UI structure
 function parseGoogleEvent(item: any) {
-  const id = item.id;
-  const title = item.summary || 'Untitled Event';
-  const rawDescription = item.description || '';
+  if (!item) {
+    return {
+      id: `temp-fallback-${Date.now()}-${Math.random()}`,
+      type: 'Meeting',
+      title: 'Untitled Event',
+      time: 'All Day',
+      duration: '24h',
+      status: 'Upcoming',
+      agenda: '',
+      platform: 'None',
+      meetingLink: '#',
+      attendees: 'None',
+      doc: '',
+      priority: 'Medium',
+      assignee: 'Unassigned',
+      alertType: 'Notification Badge',
+      category: 'Coding',
+      topic: '',
+      startDateObj: new Date(),
+      endDateObj: new Date()
+    };
+  }
+
+  let parsedItem = item;
+  if (typeof item === 'string') {
+    try {
+      parsedItem = JSON.parse(item);
+    } catch (e) {
+      console.error("Failed to parse stringified event item:", e);
+    }
+  }
+
+  const id = parsedItem.id || parsedItem.iCalUID || `temp-fallback-${Date.now()}-${Math.random()}`;
+  const title = parsedItem.summary || 'Untitled Event';
+  const rawDescription = parsedItem.description || '';
   
   let parsedMetadata: any = {};
   let agenda = rawDescription;
@@ -94,8 +127,8 @@ function parseGoogleEvent(item: any) {
     }
   }
 
-  const startStr = item.start?.dateTime || item.start?.date || '';
-  const endStr = item.end?.dateTime || item.end?.date || '';
+  const startStr = parsedItem.start?.dateTime || parsedItem.start?.date || '';
+  const endStr = parsedItem.end?.dateTime || parsedItem.end?.date || '';
   
   let time = 'All Day';
   let duration = '24h';
@@ -113,7 +146,7 @@ function parseGoogleEvent(item: any) {
         });
       };
       
-      if (item.start?.dateTime) {
+      if (parsedItem.start?.dateTime) {
         time = `${formatTime(startDate)} - ${formatTime(endDate)}`;
         const diffMs = endDate.getTime() - startDate.getTime();
         const diffMins = Math.round(diffMs / 60000);
@@ -128,11 +161,11 @@ function parseGoogleEvent(item: any) {
     } catch (e) {}
   }
 
-  const type = parsedMetadata.type || (item.location || item.hangoutLink || item.attendees ? 'Meeting' : 'Reminder');
-  const platform = parsedMetadata.platform || (item.hangoutLink ? 'Google Meet' : item.location ? 'Location' : 'None');
-  const meetingLink = parsedMetadata.meetingLink || item.hangoutLink || item.location || '#';
+  const type = parsedMetadata.type || (parsedItem.location || parsedItem.hangoutLink || parsedItem.attendees ? 'Meeting' : 'Reminder');
+  const platform = parsedMetadata.platform || (parsedItem.hangoutLink ? 'Google Meet' : parsedItem.location ? 'Location' : 'None');
+  const meetingLink = parsedMetadata.meetingLink || parsedItem.hangoutLink || parsedItem.location || '#';
   
-  const attendeesList = parsedMetadata.attendees || (item.attendees ? item.attendees.map((a: any) => a.displayName || a.email.split('@')[0]).join(', ') : 'None');
+  const attendeesList = parsedMetadata.attendees || (parsedItem.attendees ? parsedItem.attendees.map((a: any) => a.displayName || a.email.split('@')[0]).join(', ') : 'None');
   const doc = parsedMetadata.doc || '';
 
   return {
@@ -141,7 +174,7 @@ function parseGoogleEvent(item: any) {
     title,
     time,
     duration,
-    status: item.status === 'confirmed' ? 'Confirmed' : item.status || 'Upcoming',
+    status: parsedItem.status === 'confirmed' ? 'Confirmed' : parsedItem.status || 'Upcoming',
     agenda,
     platform,
     meetingLink,
@@ -285,6 +318,7 @@ const getInitialMockEventsList = () => {
 
 export default function CalendarView() {
   const router = useRouter();
+  const { user, isLoaded } = useUser();
   const [viewType, setViewType] = useState<'Week' | 'Month' | 'List'>('Week');
   
   // AI scheduling states
@@ -296,33 +330,64 @@ export default function CalendarView() {
   const [monthIndex, setMonthIndex] = useState(3); // Center index is June 2026
   const [selectedDay, setSelectedDay] = useState('Monday');
   
-  // Flat events state seeded from LocalStorage or mock data
-  const [events, setEvents] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('glideflow_calendar_cache');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((e: any) => ({
-              ...e,
-              startDateObj: new Date(e.startDateObj),
-              endDateObj: e.endDateObj ? new Date(e.endDateObj) : new Date(e.startDateObj)
-            }));
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load calendar cache:", e);
-      }
+  const [events, setEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!user) {
+      setEvents([]);
+      return;
     }
-    return getInitialMockEventsList();
-  });
+    try {
+      const cached = localStorage.getItem(`glideflow_calendar_cache_${user.id}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setEvents(parsed.map((e: any) => ({
+            ...e,
+            startDateObj: new Date(e.startDateObj),
+            endDateObj: e.endDateObj ? new Date(e.endDateObj) : new Date(e.startDateObj)
+          })));
+          return;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load calendar cache:", e);
+    }
+    setEvents(getInitialMockEventsList());
+  }, [user, isLoaded]);
 
   // Sync statuses
   const [syncStatus, setSyncStatus] = useState<string>('Initializing...');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncedMonths, setSyncedMonths] = useState<Set<string>>(new Set());
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [approvalRequired, setApprovalRequired] = useState<boolean>(false);
+  const [isConnecting, setIsConnecting] = useState<boolean>(false);
+
+  const handleConnectCalendar = async () => {
+    setIsConnecting(true);
+    try {
+      const res = await fetch('/api/account/connect', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        if (data.approvalUrl) {
+          window.open(data.approvalUrl, '_blank');
+        }
+        if (user) {
+          await user.reload();
+        }
+        setApprovalRequired(false);
+        setSyncedMonths(new Set());
+      } else {
+        alert("Failed to connect Google Account: " + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Error connecting Google Account: " + err.message);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   // Form scheduling state
   const [eventType, setEventType] = useState('Meeting');
@@ -422,10 +487,10 @@ export default function CalendarView() {
 
   // Write changes to localStorage cache
   useEffect(() => {
-    if (events.length > 0) {
-      localStorage.setItem('glideflow_calendar_cache', JSON.stringify(events));
+    if (user && events.length > 0) {
+      localStorage.setItem(`glideflow_calendar_cache_${user.id}`, JSON.stringify(events));
     }
-  }, [events]);
+  }, [events, user]);
 
   const loadMonthData = async (offset: number) => {
     const d = new Date(BASE_DATE.getFullYear(), BASE_DATE.getMonth() + offset, 1);
@@ -449,10 +514,10 @@ export default function CalendarView() {
           next.add(monthName);
           return next;
         });
-        setAuthUrl(null);
+        setApprovalRequired(false);
       } else {
-        if (json.error === 'Approval Required' && json.approvalUrl) {
-          setAuthUrl(json.approvalUrl);
+        if (json.error === 'Approval Required') {
+          setApprovalRequired(true);
         }
       }
     } catch (e: any) {
@@ -479,10 +544,10 @@ export default function CalendarView() {
           });
           return [...otherMonths, ...parsedEvents];
         });
-        setAuthUrl(null);
+        setApprovalRequired(false);
       } else {
-        if (json.error === 'Approval Required' && json.approvalUrl) {
-          setAuthUrl(json.approvalUrl);
+        if (json.error === 'Approval Required') {
+          setApprovalRequired(true);
         }
       }
     } catch (e) {
@@ -493,6 +558,7 @@ export default function CalendarView() {
 
   // Initial Sync Sequence
   useEffect(() => {
+    if (!isLoaded || !user) return;
     const syncSequence = async () => {
       setIsSyncing(true);
       for (const offset of syncOffsets) {
@@ -502,10 +568,11 @@ export default function CalendarView() {
       setIsSyncing(false);
     };
     syncSequence();
-  }, []);
+  }, [user?.id, isLoaded]);
 
   // Polling (every 30s) and Window Focus Revalidation
   useEffect(() => {
+    if (!isLoaded || !user) return;
     const handleFocus = () => {
       reloadMonth(activeMonth);
     };
@@ -520,7 +587,7 @@ export default function CalendarView() {
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
-  }, [activeMonth]);
+  }, [activeMonth, user?.id, isLoaded]);
 
   // Polling hook to automatically check Google Calendar delete approval status
   useEffect(() => {
@@ -668,7 +735,12 @@ export default function CalendarView() {
       } else {
         // Rollback
         setEvents(prev => prev.filter((evItem: any) => evItem.id !== optimisticEvent.id));
-        alert("Failed to schedule event on server: " + json.error);
+        if (json.error === 'Approval Required' && json.approvalUrl) {
+          window.open(json.approvalUrl, '_blank');
+          alert("Google Calendar write permission required. A new tab has been opened to authorize GlideFlow. Please complete the authorization and try scheduling again.");
+        } else {
+          alert("Failed to schedule event on server: " + json.error);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -847,7 +919,7 @@ export default function CalendarView() {
 
       </div>
 
-      {authUrl && (
+      {approvalRequired && (
         <div style={{ 
           padding: '14px 18px', 
           background: 'rgba(245, 158, 11, 0.08)', 
@@ -867,17 +939,17 @@ export default function CalendarView() {
               <b>Google Account Sync Required:</b> GlideFlow needs access to your Google Calendar to fetch your events.
             </span>
           </div>
-          <a 
-            href={authUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button 
+            onClick={handleConnectCalendar}
+            disabled={isConnecting}
             style={{ 
               background: '#f59e0b', 
               color: '#000', 
+              border: 'none',
               padding: '6px 14px', 
               borderRadius: '6px', 
               fontWeight: 700, 
-              textDecoration: 'none',
+              cursor: isConnecting ? 'wait' : 'pointer',
               fontSize: '0.8rem',
               display: 'flex',
               alignItems: 'center',
@@ -887,8 +959,8 @@ export default function CalendarView() {
             onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
             onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
           >
-            Connect Calendar <ExternalLink size={12} />
-          </a>
+            {isConnecting ? 'Connecting...' : 'Connect Calendar'} <ExternalLink size={12} />
+          </button>
         </div>
       )}
 
